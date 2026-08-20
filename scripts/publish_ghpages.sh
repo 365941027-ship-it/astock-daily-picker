@@ -15,15 +15,13 @@ echo "== [1/2] 生成静态站点 =="
 
 echo "== [2/2] 推送到 GitHub Pages =="
 # 用 git worktree 把 site/ 同步到 gh-pages 分支
-WT=""
-if git worktree list 2>/dev/null | awk '{print $2}' | grep -qx "/tmp/astock-gh-pages"; then
-  WT="/tmp/astock-gh-pages"
-else
+WT="$(git worktree list --porcelain | awk '/^worktree /{p=$0} /branch refs\/heads\/gh-pages/{sub(/^worktree /, "", p); print p; exit}')"
+if [ -z "$WT" ]; then
   WT="$(mktemp -d /tmp/astock-gh-pages.XXXXXX)"
-  git worktree add "$WT" gh-pages >/dev/null 2>&1 || git worktree add "$WT" -b gh-pages >/dev/null 2>&1
+  git worktree add "$WT" -b gh-pages >/dev/null 2>&1 || git worktree add "$WT" gh-pages >/dev/null 2>&1
 fi
 
-rsync -a --delete "$ROOT/site/" "$WT/"
+rsync -a --delete --exclude ".git" "$ROOT/site/" "$WT/"
 cd "$WT"
 git add -A
 if git diff --cached --quiet; then
