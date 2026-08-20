@@ -1,0 +1,44 @@
+<view class="head-bar">
+  <view class="title">{{name}}
+    <text class="code">{{code}}</text>
+  </view>
+  <view class="sub">数据日期 {{date}} · 日K前复权</view>
+  <view class="head-actions">
+    <view class="chip {{klt === 101 ? 'on' : ''}}" bindtap="setKlt" data-klt="101">日K</view>
+    <view class="chip {{klt === 60 ? 'on' : ''}}" bindtap="setKlt" data-klt="60">60分</view>
+    <view class="chip {{klt === 30 ? 'on' : ''}}" bindtap="setKlt" data-klt="30">30分</view>
+    <view class="chip share" bindtap="shareCard">分享</view>
+  </view>
+</view>
+
+<view class="card">
+  <view class="card-title">K线走势</view>
+  <view class="chan-info" wx:if="{{chanlun.zhongshu}}">
+    <text class="ci-tag">缠论中枢</text>
+    <text class="ci-text">ZG {{chanlun.zhongshu.zg}} · ZD {{chanlun.zhongshu.zd}} · {{chanlun.zhongshu.pens}}笔</text>
+  </view>
+  <view class="chart-box">
+    <canvas canvas-id="kline" class="kline-canvas" width="375" height="260"></canvas>
+  </view>
+  <view class="legend">
+    <text class="lg ma5">MA5</text>
+    <text class="lg ma10">MA10</text>
+    <text class="lg ma20">MA20</text>
+    <text class="lg right">红涨 绿跌</text>
+  </view>
+</view>
+
+<view class="card">
+  <view class="card-title">技术指标</view>
+  <view class="ind-grid">
+    <view class="ind-cell" wx:for="{{indList}}" wx:key="k">
+      <text class="ind-k">{{item.k}}</text>
+      <text class="ind-v">{{item.v}}</text>
+    </view>
+  </view>
+</view>
+
+<view class="card" wx:if="{{note}}">
+  <view class="card-title">观察要点</view>
+  <view class="note-text">{{note}}</view>
+</view>

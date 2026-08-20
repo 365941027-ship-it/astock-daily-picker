@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>A股每日选股</title>
+  <link rel="stylesheet" href="style.css?v=13">
+</head>
+<body>
+  <div class="layout">
+    <!-- 左侧导航 -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="logo">股</span>
+        <div>
+          <h1>A股每日选股</h1>
+          <p>缠论 · 复盘 · 研判</p>
+        </div>
+      </div>
+      <nav class="nav" id="mainNav">
+        <a class="nav-item active" data-section="pick">选股</a>
+        <a class="nav-item" data-section="replay">历史复盘</a>
+        <a class="nav-item" data-section="verify">预判核对</a>
+        <a class="nav-item" data-section="signal">缠论研判</a>
+        <a class="nav-item" data-section="news">财经新闻</a>
+        <a class="nav-item" data-section="watch">自选股</a>
+        <a class="nav-item" data-section="hold">我的持仓</a>
+      </nav>
+      <div class="side-footer">
+        <div class="status-badge" id="statusBadge">空闲</div>
+        <p class="side-note">仅个人研究，不构成投资建议</p>
+      </div>
+    </aside>
+
+    <!-- 内容区 -->
+    <main class="content">
+      <!-- 选股 -->
+      <section class="section active" id="sec-pick">
+        <div class="card">
+          <div class="card-title">运行参数</div>
+          <div class="form-grid">
+            <label>数据日期 <input type="date" id="inputDate"></label>
+            <label>优先数量 <input type="number" id="inputTop" min="1" max="30" value="8"></label>
+            <label class="full">网络代理（可选）<input type="text" id="inputProxy" placeholder="socks5h://127.0.0.1:7897"></label>
+            <label class="check"><input type="checkbox" id="inputRefresh"><span>忽略缓存强制重拉</span></label>
+            <label class="check"><input type="checkbox" id="inputIntraday"><span>盘中数据出正式候选</span></label>
+          </div>
+          <div class="actions">
+            <button id="btnRun" class="primary">开始选股</button>
+            <button id="btnReset" class="ghost">重置参数</button>
+          </div>
+          <div class="log-box" id="logBox" hidden>
+            <div class="log-title">运行日志</div>
+            <div id="logList"></div>
+          </div>
+        </div>
+
+        <div class="market-strip" id="marketStrip" hidden></div>
+        <div class="index-row" id="indexRow" hidden></div>
+        <div id="marketBanner" hidden></div>
+
+        <div class="section-block">
+          <div class="section-head"><h2>优先观察</h2><span class="count-badge" id="priCount">0</span><span class="meta" id="resultMeta"></span></div>
+          <div class="table-wrap"><table id="priTable">
+            <thead><tr><th>代码</th><th>名称</th><th class="num">收盘</th><th class="num">涨幅</th><th class="num">换手</th><th>结构</th><th>观察要点</th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head"><h2>强势但不宜追高</h2><span class="count-badge warn" id="strongCount">0</span></div>
+          <div class="table-wrap"><table id="strongTable">
+            <thead><tr><th>代码</th><th>名称</th><th class="num">收盘</th><th class="num">涨幅</th><th>风险点 / 处理方式</th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head"><h2>剔除或降级观察</h2><span class="count-badge gray" id="excCount">0</span></div>
+          <ul id="excludedList" class="excluded-list"></ul>
+        </div>
+
+        <div class="actions" id="downloadActions">
+          <button id="btnMd" class="ghost" hidden>下载 Markdown</button>
+          <button id="btnDocx" class="ghost" hidden>下载 Word</button>
+        </div>
+      </section>
+
+      <!-- 历史复盘 -->
+      <section class="section" id="sec-replay">
+        <div class="card">
+          <div class="card-title">历史回放</div>
+          <div class="form-grid">
+            <label>起始日期 <input type="date" id="replayStart"></label>
+            <label>结束日期 <input type="date" id="replayEnd"></label>
+          </div>
+          <div class="actions"><button id="btnReplay" class="primary">开始历史回放</button></div>
+          <div id="replayDays" class="replay-days" hidden></div>
+        </div>
+        <div id="replayResult"></div>
+      </section>
+
+      <!-- 预判核对 -->
+      <section class="section" id="sec-verify">
+        <div class="card">
+          <div class="card-title">预判核对</div>
+          <div class="form-grid">
+            <label>核对日 <input type="date" id="verifyDate"><span class="hint">回看核对日前一交易日候选的表现</span></label>
+          </div>
+          <div class="actions">
+            <button id="btnVerify" class="primary">核对</button>
+            <button id="btnVerifyAll" class="ghost">核对全部交易日</button>
+          </div>
+        </div>
+        <div id="verifySummary" class="verify-summary" hidden></div>
+        <div class="table-wrap" id="verifyTableWrap" hidden>
+          <table id="verifyTable">
+            <thead><tr>
+              <th>代码</th><th>名称</th><th class="num">观察收盘</th><th class="num">支撑位</th>
+              <th class="num">次日收盘</th><th class="num">次日涨跌</th><th class="num">次日最低</th>
+              <th>判定</th><th>修正建议</th><th>K线</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 缠论研判 -->
+      <section class="section" id="sec-signal">
+        <div class="card">
+          <div class="card-title">缠论大盘研判 <span class="meta">按《缠论》中枢+均线口径判断当日是否适合入场</span></div>
+          <div class="actions"><button id="btnSignal" class="primary">刷新研判</button></div>
+        </div>
+        <div id="signalResult"></div>
+        <div class="card">
+          <div class="card-title">今日观察行业 <span class="meta">每日精选 3-5 个行业</span></div>
+          <div id="watchSectors"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">行业板块热度 <span class="meta">Top30 · 按当日涨跌幅</span></div>
+          <div class="actions"><button id="btnSectors" class="ghost">刷新板块</button></div>
+          <div class="table-wrap" style="margin-top:12px">
+            <table id="sectorTable">
+              <thead><tr><th class="num">#</th><th>板块</th><th class="num">涨跌幅</th><th>龙头</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 财经新闻 -->
+      <section class="section" id="sec-news">
+        <div class="card">
+          <div class="card-title">财经快讯 <span class="meta">作为当日选股基本面参考</span></div>
+          <div class="actions"><button id="btnNews" class="primary">刷新新闻</button></div>
+        </div>
+        <div id="newsTags" class="news-tags" hidden></div>
+        <div id="newsList"></div>
+      </section>
+
+      <!-- 自选股 -->
+      <section class="section" id="sec-watch">
+        <div class="card">
+          <div class="card-title">自选股</div>
+          <div class="form-grid">
+            <label>代码 <input type="text" id="watchCode" maxlength="6" placeholder="如 600126"></label>
+            <label>名称 <input type="text" id="watchName" placeholder="如 杭钢股份"></label>
+            <label>提醒价 <input type="number" id="watchPrice" step="0.01" placeholder="可选"></label>
+            <label>提醒方式
+              <select id="watchType"><option value="below">跌破提醒</option><option value="above">突破提醒</option></select>
+            </label>
+          </div>
+          <div class="actions"><button id="btnAddWatch" class="primary">加入自选</button></div>
+          <div id="watchList" class="watch-list"></div>
+        </div>
+      </section>
+
+      <!-- 我的持仓 -->
+      <section class="section" id="sec-hold">
+        <div class="card">
+          <div class="card-title">我的持仓 <span class="meta">模拟盘 · 初始资金 10 万</span></div>
+          <div class="index-row" id="holdingSummary" hidden></div>
+          <div class="form-grid">
+            <label>代码 <input type="text" id="tradeCode" maxlength="6" placeholder="如 600126"></label>
+            <label>名称 <input type="text" id="tradeName" placeholder="如 杭钢股份"></label>
+            <label>价格 <input type="number" id="tradePrice" step="0.01" placeholder="成交价"></label>
+            <label>数量(股) <input type="number" id="tradeShares" placeholder="100 的整数倍"></label>
+            <label>操作 <select id="tradeAction"><option value="buy">买入</option><option value="sell">卖出</option></select></label>
+          </div>
+          <div class="actions"><button id="btnTrade" class="primary">确认交易</button></div>
+        </div>
+        <div class="section-block">
+          <div class="section-head"><h2>当前持仓</h2></div>
+          <div class="table-wrap"><table id="positionTable">
+            <thead><tr><th>代码</th><th>名称</th><th class="num">现价</th><th class="num">成本</th><th class="num">数量</th>
+              <th class="num">市值</th><th class="num">盈亏</th><th class="num">盈亏率</th><th>K线</th><th>操作</th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+        <div class="section-block">
+          <div class="section-head"><h2>交易记录</h2></div>
+          <div class="table-wrap"><table id="tradeTable">
+            <thead><tr><th>日期</th><th>代码</th><th>名称</th><th>操作</th><th class="num">价格</th><th class="num">数量</th><th class="num">金额</th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 个股详情弹窗 -->
+  <div class="modal-mask" id="modalMask" hidden onclick="if(event.target===this)this.hidden=true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title" id="modalTitle"></div>
+          <div class="modal-sub" id="modalSub"></div>
+        </div>
+        <button class="close" id="modalClose">×</button>
+      </div>
+      <div class="klt-tabs">
+        <button class="klt-tab active" data-klt="101">日K</button>
+        <button class="klt-tab" data-klt="60">60分</button>
+        <button class="klt-tab" data-klt="30">30分</button>
+        <span class="chan-badge" id="chanBadge" hidden></span>
+      </div>
+      <div class="ind-grid" id="modalInd"></div>
+      <div class="chart-box"><canvas id="klineCanvas"></canvas></div>
+      <div class="modal-note" id="modalNote"></div>
+    </div>
+  </div>
+
+  <div class="loading-mask" id="loadingMask" hidden
+       onclick="if(event.target===this)window.dismissLoading()">
+    <button class="mask-close" type="button" onclick="window.dismissLoading()" title="关闭提示">×</button>
+    <div class="spinner"></div>
+    <div>正在运行选股…</div>
+    <button class="ghost" type="button" onclick="window.dismissLoading()">关闭提示（任务仍在后台进行，可查看日志）</button>
+  </div>
+
+  <script>
+    window.dismissLoading = function () {
+      try { sessionStorage.setItem("loading-dismissed", "1"); } catch (e) {}
+      var el = document.getElementById("loadingMask");
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    };
+
+    // 用文件方式打开时：若本地服务在运行则自动跳转，否则明确提示
+    if (location.protocol === "file:") {
+      (function () {
+        var SERVICE = "http://127.0.0.1:8235";
+        var ctrl = new AbortController();
+        var timer = setTimeout(function () { ctrl.abort(); }, 2500);
+        fetch(SERVICE + "/api/config", { signal: ctrl.signal })
+          .then(function (r) {
+            if (!r.ok) throw new Error("service not ok");
+            location.href = SERVICE + "/";
+          })
+          .catch(function () {
+            document.body.innerHTML =
+              '<div style="font-family:sans-serif;max-width:520px;margin:80px auto;padding:32px;border:1px solid #ffc9c9;border-radius:14px;background:#fff5f5">' +
+              '<h2 style="color:#c92a2a;margin:0 0 12px">访问方式不对</h2>' +
+              '<p style="font-size:15px;line-height:1.7;color:#3d4754">当前是用文件方式打开的页面（地址以 <b>file://</b> 开头），且本地选股服务没有运行，无法加载数据。</p>' +
+              '<p style="font-size:15px;line-height:1.7;color:#3d4754">请先双击工作区里的 <b>启动选股网页版.command</b> 启动服务，然后访问：</p>' +
+              '<p><a href="' + SERVICE + '/" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:600">打开网页版 http://127.0.0.1:8235</a></p>' +
+              '</div>';
+          })
+          .finally(function () { clearTimeout(timer); });
+      })();
+    }
+  </script>
+  <script src="app.js?v=13"></script>
+</body>
+</html>

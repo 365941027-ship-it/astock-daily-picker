@@ -1,0 +1,50 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/watchlist/watchlist",
+    "pages/holdings/holdings",
+    "pages/sectors/sectors",
+    "pages/verify/verify",
+    "pages/detail/detail"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#1e3a8a",
+    "navigationBarTitleText": "A股每日选股",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f2f4f9"
+  },
+  "tabBar": {
+    "color": "#8a93a3",
+    "selectedColor": "#2563eb",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "iconPath": "images/pick.png",
+        "selectedIconPath": "images/pick_active.png",
+        "text": "选股"
+      },
+      {
+        "pagePath": "pages/watchlist/watchlist",
+        "iconPath": "images/watch.png",
+        "selectedIconPath": "images/watch_active.png",
+        "text": "自选"
+      },
+      {
+        "pagePath": "pages/holdings/holdings",
+        "iconPath": "images/hold.png",
+        "selectedIconPath": "images/hold_active.png",
+        "text": "持仓"
+      },
+      {
+        "pagePath": "pages/verify/verify",
+        "iconPath": "images/verify.png",
+        "selectedIconPath": "images/verify_active.png",
+        "text": "核对"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,121 @@
+.head-bar {
+  padding: 32rpx 32rpx 8rpx;
+}
+.title {
+  font-size: 42rpx;
+  font-weight: 800;
+  color: #16233b;
+}
+.code {
+  color: #9aa4b2;
+  font-size: 28rpx;
+  font-weight: 400;
+  margin-left: 12rpx;
+}
+.sub {
+  color: #9aa4b2;
+  font-size: 24rpx;
+  margin-top: 8rpx;
+}
+.head-actions {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+.chip {
+  padding: 8rpx 22rpx;
+  border-radius: 999rpx;
+  border: 2rpx solid #e4e8ee;
+  color: #6b7684;
+  font-size: 24rpx;
+}
+.chip.on {
+  background: #e7f1ff;
+  border-color: #2563eb;
+  color: #2563eb;
+  font-weight: 600;
+}
+.chip.share {
+  margin-left: auto;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+.chan-info {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 14rpx;
+  background: #f8fafc;
+  border-radius: 14rpx;
+  padding: 12rpx 16rpx;
+  font-size: 24rpx;
+  color: #5b6b82;
+}
+.ci-tag {
+  background: #e7f1ff;
+  color: #2563eb;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 600;
+}
+
+.chart-box {
+  height: 520rpx;
+  border: 2rpx solid #eef1f5;
+  border-radius: 20rpx;
+  background: linear-gradient(180deg, #fbfcfe, #ffffff);
+  position: relative;
+  overflow: hidden;
+}
+.kline-canvas {
+  width: 100%;
+  height: 100%;
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  margin-top: 14rpx;
+  font-size: 24rpx;
+  color: #6b7684;
+}
+.legend .right {
+  margin-left: auto;
+}
+.lg.ma5 { color: #f59f00; font-weight: 600; }
+.lg.ma10 { color: #1971c2; font-weight: 600; }
+.lg.ma20 { color: #9c36b5; font-weight: 600; }
+
+.ind-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.ind-cell {
+  width: calc(33.33% - 12rpx);
+  background: #f8fafc;
+  border-radius: 16rpx;
+  padding: 16rpx;
+  border: 2rpx solid #f0f2f7;
+}
+.ind-k {
+  display: block;
+  font-size: 22rpx;
+  color: #8a93a3;
+}
+.ind-v {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  margin-top: 6rpx;
+  color: #16233b;
+  font-variant-numeric: tabular-nums;
+}
+.note-text {
+  font-size: 27rpx;
+  color: #3d4754;
+  line-height: 1.7;
+}

@@ -1,0 +1,146 @@
+page {
+  background: #f2f4f9;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #16233b;
+  font-size: 28rpx;
+  line-height: 1.55;
+}
+
+/* ---------- 通用卡片 ---------- */
+.card {
+  background: #ffffff;
+  border-radius: 28rpx;
+  padding: 32rpx;
+  margin: 20rpx 24rpx;
+  box-shadow: 0 4rpx 24rpx rgba(26, 45, 90, 0.07);
+}
+
+.card-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  margin-bottom: 24rpx;
+  color: #16233b;
+  display: flex;
+  align-items: center;
+  border-left: 8rpx solid #2563eb;
+  padding-left: 16rpx;
+}
+
+/* ---------- 按钮 ---------- */
+.btn-primary {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #ffffff;
+  border-radius: 20rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  padding: 22rpx 0;
+  text-align: center;
+  box-shadow: 0 8rpx 22rpx rgba(37, 99, 235, 0.28);
+}
+.btn-primary::after {
+  border: none;
+}
+.btn-primary[disabled] {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.btn-ghost {
+  background: #ffffff;
+  color: #3d4754;
+  border: 2rpx solid #e4e8ee;
+  border-radius: 20rpx;
+  font-size: 30rpx;
+  padding: 20rpx 0;
+  text-align: center;
+}
+.btn-ghost::after {
+  border: none;
+}
+
+/* ---------- 涨跌色 ---------- */
+.up { color: #e03131; }
+.down { color: #2f9e44; }
+.sub { color: #6b7684; font-size: 24rpx; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- 分节标题 ---------- */
+.section-head {
+  display: flex;
+  align-items: center;
+  margin: 36rpx 28rpx 18rpx;
+}
+.section-head text:first-child {
+  font-size: 30rpx;
+  font-weight: 700;
+}
+.count-badge {
+  margin-left: 12rpx;
+  background: linear-gradient(135deg, #e7f1ff, #dbeafe);
+  color: #2563eb;
+  border-radius: 999rpx;
+  padding: 4rpx 18rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+.count-badge.warn {
+  background: linear-gradient(135deg, #fff3e0, #ffe8cc);
+  color: #e8590c;
+}
+
+.empty {
+  color: #9aa4b2;
+  text-align: center;
+  padding: 60rpx 0;
+  font-size: 26rpx;
+}
+
+/* ---------- 横向滚动表格 ---------- */
+.scroll-x {
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+.table-wrap {
+  background: #ffffff;
+  border-radius: 24rpx;
+  margin: 0 24rpx;
+  overflow: hidden;
+  box-shadow: 0 4rpx 20rpx rgba(26, 45, 90, 0.05);
+}
+.tbl {
+  min-width: 1200rpx;
+  font-size: 26rpx;
+}
+.tr {
+  display: flex;
+  border-bottom: 2rpx solid #f0f2f7;
+}
+.tr:last-child {
+  border-bottom: none;
+}
+.tr.th {
+  background: #f7f9fc;
+  font-weight: 600;
+  color: #5b6b82;
+  font-size: 24rpx;
+}
+.td {
+  padding: 18rpx 12rpx;
+  flex-shrink: 0;
+  word-break: break-all;
+}
+.w-code { width: 150rpx; }
+.w-name { width: 170rpx; }
+.w-num { width: 130rpx; text-align: right; font-variant-numeric: tabular-nums; }
+.w-note { width: 480rpx; }
+.w-judge { width: 260rpx; }
+.w-sugg { width: 300rpx; }
+
+/* ---------- 底部说明 ---------- */
+.footer-note {
+  text-align: center;
+  color: #9aa4b2;
+  font-size: 22rpx;
+  padding: 36rpx 0 60rpx;
+}
