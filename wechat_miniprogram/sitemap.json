@@ -1,9 +1,0 @@
-{
-  "desc": "A股每日选股小程序页面收录规则",
-  "rules": [
-    {
-      "action": "disallow",
-      "page": "*"
-    }
-  ]
-}
