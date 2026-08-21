@@ -14,6 +14,18 @@ echo "== [1/2] 生成静态站点 =="
 "$PY" scripts/build_static_site.py "$@"
 
 echo "== [2/2] 推送到 GitHub Pages =="
+# 若有代理参数，则生成站点和 git 推送都走该代理（自动化环境通常需要）
+PROXY=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --proxy) PROXY="$2"; shift 2;;
+    *) shift;;
+  esac
+done
+if [ -n "$PROXY" ]; then
+  export HTTPS_PROXY="$PROXY" HTTP_PROXY="$PROXY" ALL_PROXY="$PROXY"
+fi
+
 # 用 git worktree 把 site/ 同步到 gh-pages 分支
 WT="$(git worktree list --porcelain | awk '/^worktree /{p=$0} /branch refs\/heads\/gh-pages/{sub(/^worktree /, "", p); print p; exit}')"
 if [ -z "$WT" ]; then

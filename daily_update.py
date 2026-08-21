@@ -16,6 +16,8 @@
 from __future__ import annotations
 
 import argparse
+import glob
+import json
 import os
 import subprocess
 import sys
@@ -36,8 +38,29 @@ def wait_job(timeout: int = 300) -> bool:
     return False
 
 
-def run_pick(data_date: str, proxy: str = "") -> bool:
+def cache_dir_stale(cache_root: str, data_date: str) -> bool:
+    """判断目标日期的缓存目录是否为旧数据（K线最后一根不是目标日期）。"""
+    day_dir = os.path.join(cache_root, data_date.replace("-", ""))
+    if not os.path.isdir(day_dir):
+        return False
+    files = sorted(glob.glob(os.path.join(day_dir, "kline_*.json")))[:10]
+    if not files:
+        return False
+    for f in files:
+        try:
+            with open(f, encoding="utf-8") as fh:
+                bars = json.load(fh)
+            if bars and bars[-1].get("date") == data_date:
+                return False
+        except Exception:
+            continue
+    return True
+
+
+def run_pick(data_date: str, proxy: str = "", refresh: bool = False) -> bool:
     params = {"date": data_date}
+    if refresh or cache_dir_stale(os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_picker", "cache"), data_date):
+        params["refresh"] = True
     if proxy:
         params["proxy"] = proxy
     webapp.run_pipeline(params)
@@ -102,6 +125,7 @@ def main() -> int:
     parser.add_argument("--proxy", default="", help="行情代理，如 socks5h://127.0.0.1:7897")
     parser.add_argument("--history-start", default="2026-07-01", help="历史回放/核对起始日期")
     parser.add_argument("--offline", action="store_true", help="仅使用本地缓存（不联网）")
+    parser.add_argument("--refresh", action="store_true", help="强制重新拉取行情（默认自动检测过期缓存）")
     parser.add_argument("--send-email", action="store_true", help="同时发送邮件报告")
     parser.add_argument("--to", default="365941027@qq.com", help="收件邮箱")
     parser.add_argument("--no-publish", action="store_true", help="跳过 GitHub Pages 发布")
@@ -115,7 +139,7 @@ def main() -> int:
         ok1 = webapp.JOB.state == "done"
         print(f"[选股(离线)] {'成功' if ok1 else '失败'}: {webapp.JOB.error or ''}")
     else:
-        ok1 = run_pick(data_date, args.proxy)
+        ok1 = run_pick(data_date, args.proxy, refresh=args.refresh)
     ok2 = run_replay_update(data_date, args.history_start)
     ok3 = run_verify_update(data_date, args.history_start)
     if not args.no_publish and (ok1 or ok2 or ok3):

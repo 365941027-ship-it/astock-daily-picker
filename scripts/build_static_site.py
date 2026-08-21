@@ -27,6 +27,7 @@ import os
 import re
 import shutil
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
@@ -100,10 +101,16 @@ def _collect_symbols() -> list[str]:
     return sorted(codes)
 
 
+_CACHE_DIRS: list[str] | None = None
+
+
 def _latest_cache_day_for(code: str) -> str | None:
-    if not os.path.isdir(webapp.CACHE.root):
-        return None
-    for d in sorted(os.listdir(webapp.CACHE.root), reverse=True):
+    global _CACHE_DIRS
+    if _CACHE_DIRS is None:
+        if not os.path.isdir(webapp.CACHE.root):
+            return None
+        _CACHE_DIRS = sorted(d for d in os.listdir(webapp.CACHE.root) if d.isdigit())
+    for d in reversed(_CACHE_DIRS):
         if d.isdigit() and os.path.exists(os.path.join(webapp.CACHE.root, d, f"kline_{code}.json")):
             return d
     return None
@@ -112,14 +119,24 @@ def _latest_cache_day_for(code: str) -> str | None:
 def _build_kline(codes: list[str]) -> None:
     os.makedirs(KLINE_OUT, exist_ok=True)
     written = 0
-    for code in codes:
+
+    def export_one(code: str) -> bool:
         day = _latest_cache_day_for(code)
         if not day:
-            continue
+            return False
         payload = webapp.kline_payload(code, day, klt=101)
         if payload:
             _write_json(os.path.join(KLINE_OUT, f"{code}_101.json"), payload)
-            written += 1
+            return True
+        return False
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {pool.submit(export_one, code): code for code in codes}
+        for i, fut in enumerate(as_completed(futures), 1):
+            if fut.result():
+                written += 1
+            if i % 50 == 0:
+                print(f"[K线] 进度 {i}/{len(codes)}")
     print(f"[K线] 导出 {written}/{len(codes)} 只个股日K（含指标+缠论标注）")
 
 
