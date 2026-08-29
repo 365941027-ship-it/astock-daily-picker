@@ -357,6 +357,8 @@ if(DATA.cards.length){
       <div><span>目标价</span><b class="up">${fmt(c.target)}</b></div>
       <div><span>观察期限</span><b>${c.hold_days} 个交易日</b></div>
     </div>
+    ${c.vetoed && c.vetoed.length ? `<div class="note" style="background:#fff0f0;border:1px solid #ffc9c9;color:#c92a2a;margin-bottom:6px">排雷否决：${c.vetoed.join("；")}</div>` : ""}
+    ${c.risks && c.risks.length ? `<div class="note" style="margin-bottom:6px">风险提示：${c.risks.slice(0,2).join("；")}</div>` : ""}
     <div class="note">${c.note}</div>
   </div>`).join("");
 } else { cb.innerHTML = `<div class="empty">暂无候选</div>`; }

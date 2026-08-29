@@ -46,6 +46,8 @@ class Candidate:
     score: float = 0.0
     reasons: List[str] = field(default_factory=list)
     note: str = ""
+    risks: List[str] = field(default_factory=list)       # 风险提示（非否决）
+    risk_detail: List[Dict] = field(default_factory=list)  # 原始风险事件
 
     @property
     def close(self) -> Optional[float]:

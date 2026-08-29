@@ -11,6 +11,7 @@ const state = {
   pollTimer: null,
   replayDays: [],
   replayActive: null,
+  risks: {},
   modal: { code: "", date: "", name: "", klt: 101, chan: null },
 };
 
@@ -181,6 +182,23 @@ function esc(s) {
   }[c]));
 }
 
+/* 风险徽标：红色=一票否决，黄色=风险提示；warnOnly 时只显示黄色提示（历史回放/核对避免误导） */
+function riskBadges(risks, warnOnly) {
+  if (!risks || !risks.length) return "";
+  return risks.map((r) => {
+    const veto = String(r || "").includes("否决") || String(r || "").includes("拟减持") ||
+      String(r || "").includes("立案") || String(r || "").includes("预亏") ||
+      String(r || "").includes("退市") || String(r || "").includes("重组终止") ||
+      String(r || "").includes("商誉") || String(r || "").includes("处罚");
+    if (warnOnly && veto) return "";
+    return `<span class="risk-badge ${veto ? "risk-veto" : ""}" title="${esc(r)}">${veto ? "排雷" : "提示"} ${esc(r)}</span>`;
+  }).join("");
+}
+
+function nameCell(name, code, date, risks, warnOnly) {
+  return `<span class="stock-link" data-code="${esc(code)}" data-date="${esc(date || "")}" data-name="${esc(name)}">${esc(name)}</span>${riskBadges(risks, warnOnly)}`;
+}
+
 function klineBtn(code, date, name) {
   return `<span class="stock-link" data-code="${esc(code)}" data-date="${esc(date || "")}" data-name="${esc(name)}">K线</span>`;
 }
@@ -285,6 +303,7 @@ async function init() {
   loadNews();
   loadSectors();
   if (STATIC) {
+    fetchWithTimeout("data/risks.json").then((r) => r.json()).then((m) => { state.risks = m || {}; }).catch(() => {});
     fetchWithTimeout("data/latest.json").then((r) => r.json()).then((r) => {
       if (r && r.priority) renderResult(r);
     }).catch(() => {});
@@ -436,7 +455,7 @@ function renderResult(r) {
   $("#priCount").textContent = r.priority.length;
   $("#priTable tbody").innerHTML = r.priority.map((c) => `<tr>
     <td>${esc(c.code)}</td>
-    <td><span class="stock-link" data-code="${esc(c.code)}" data-date="${esc(r.data_date)}" data-name="${esc(c.name)}">${esc(c.name)}</span></td>
+    <td>${nameCell(c.name, c.code, r.data_date, c.risks)}</td>
     <td class="num">${fmtNum(c.close)}</td>
     <td class="num ${pctClass(c.pct_chg)}">${fmtPct(c.pct_chg)}</td>
     <td class="num">${fmtNum(c.turnover)}%</td>
@@ -447,7 +466,7 @@ function renderResult(r) {
   $("#strongCount").textContent = r.strong.length;
   $("#strongTable tbody").innerHTML = r.strong.map((c) => `<tr>
     <td>${esc(c.code)}</td>
-    <td><span class="stock-link" data-code="${esc(c.code)}" data-date="${esc(r.data_date)}" data-name="${esc(c.name)}">${esc(c.name)}</span></td>
+    <td>${nameCell(c.name, c.code, r.data_date, c.risks)}</td>
     <td class="num">${fmtNum(c.close)}</td>
     <td class="num ${pctClass(c.pct_chg)}">${fmtPct(c.pct_chg)}</td>
     <td>${esc(c.note)}</td></tr>`).join("") ||
@@ -457,6 +476,18 @@ function renderResult(r) {
   $("#excludedList").innerHTML = r.excluded
     .map((c) => `<li><b>${esc(c.code)} ${esc(c.name)}</b>：${esc((c.reasons || []).slice(0, 3).join("；"))}</li>`)
     .join("") || `<li class="empty">本轮没有需要单独列出的剔除样本。</li>`;
+
+  // 排雷剔除
+  const rrBox = document.getElementById("riskRejected");
+  if (rrBox) {
+    const items = r.risk_rejected || [];
+    rrBox.hidden = !items.length;
+    rrBox.innerHTML = (items || []).map((c) => `<li><b>${esc(c.code)} ${esc(c.name)}</b>：${esc((c.reasons || []).join("；"))}</li>`).join("");
+    const cnt = document.getElementById("riskCount");
+    if (cnt) cnt.textContent = items.length;
+    const hint = document.getElementById("riskHint");
+    if (hint) hint.hidden = !!items.length;
+  }
 
   $("#btnMd").dataset.date = r.data_date;
   $("#btnMd").hidden = r.replay || !r.files || !r.files.md;
@@ -527,7 +558,7 @@ function renderReplayDetail(day, payload) {
   const box = $("#replayResult");
   const rows = (payload.priority || []).map((c) => `<tr>
     <td>${esc(c.code)}</td>
-    <td><span class="stock-link" data-code="${esc(c.code)}" data-date="${esc(day)}" data-name="${esc(c.name)}">${esc(c.name)}</span></td>
+    <td>${nameCell(c.name, c.code, day, state.risks[c.code], true)}</td>
     <td class="num">${fmtNum(c.close)}</td>
     <td class="num ${pctClass(c.pct_chg)}">${fmtPct(c.pct_chg)}</td>
     <td class="num">${fmtNum(c.turnover)}%</td>
@@ -537,7 +568,7 @@ function renderReplayDetail(day, payload) {
   </tr>`).join("");
   const strongRows = (payload.strong || []).map((c) => `<tr>
     <td>${esc(c.code)}</td>
-    <td><span class="stock-link" data-code="${esc(c.code)}" data-date="${esc(day)}" data-name="${esc(c.name)}">${esc(c.name)}</span></td>
+    <td>${nameCell(c.name, c.code, day, state.risks[c.code], true)}</td>
     <td class="num">${fmtNum(c.close)}</td>
     <td class="num ${pctClass(c.pct_chg)}">${fmtPct(c.pct_chg)}</td>
     <td>${esc(c.note)}</td>
@@ -589,7 +620,7 @@ function renderCompare(day, payload, next, verify) {
     const c = candByCode[v.code] || {};
     return `<tr class="${rowCls[v.group] || ""}">
       <td>${esc(v.code)}</td>
-      <td><span class="stock-link" data-code="${esc(v.code)}" data-date="${esc(day)}" data-name="${esc(v.name)}">${esc(v.name)}</span></td>
+      <td>${nameCell(v.name, v.code, day, state.risks[v.code], true)}</td>
       <td class="num">${fmtNum(v.prev_close)}</td>
       <td class="num">${esc((c.note || "").split("等回踩")[0])}</td>
       <td class="num">${v.support != null ? v.support.toFixed(2) : "—"}</td>
@@ -677,7 +708,7 @@ function renderVerify(p) {
   };
   tbody.innerHTML = p.entries.map((e) => `<tr class="${rowCls[e.group] || ""}">
     <td>${esc(e.code)}</td>
-    <td><span class="stock-link" data-code="${esc(e.code)}" data-date="${esc(p.checked_on)}" data-name="${esc(e.name)}">${esc(e.name)}</span></td>
+    <td>${nameCell(e.name, e.code, p.checked_on, state.risks[e.code], true)}</td>
     <td class="num">${fmtNum(e.prev_close)}</td>
     <td class="num">${e.support != null ? e.support.toFixed(2) : "—"}</td>
     <td class="num">${fmtNum(e.next_close)}</td>
@@ -773,7 +804,7 @@ async function loadWatchlist() {
     if (!list.length) { box.innerHTML = `<div class="empty">还没有自选股，添加一只试试吧。</div>`; return; }
     box.innerHTML = list.map((w) => `
       <div class="watch-item">
-        <div class="watch-main"><b>${esc(w.name)}</b><span class="sub">${esc(w.code)}</span>
+        <div class="watch-main"><b>${esc(w.name)}</b>${riskBadges(state.risks[w.code])}<span class="sub">${esc(w.code)}</span>
           <span class="watch-alert">${w.alert_price ? (w.alert_type === "above" ? "突破 " : "跌破 ") + w.alert_price : "未设提醒"}</span></div>
         <div class="watch-actions">
           <a class="watch-link" data-code="${esc(w.code)}" data-name="${esc(w.name)}">K线</a>
@@ -813,7 +844,7 @@ async function loadHoldings() {
       mv += marketV;
       return `<tr>
         <td>${esc(p.code)}</td>
-        <td><span class="stock-link" data-code="${esc(p.code)}" data-date="" data-name="${esc(p.name)}">${esc(p.name)}</span></td>
+        <td>${nameCell(p.name, p.code, "", state.risks[p.code])}</td>
         <td class="num">${close.toFixed(2)}</td><td class="num">${p.cost.toFixed(2)}</td>
         <td class="num">${p.shares}</td><td class="num">${marketV.toFixed(0)}</td>
         <td class="num ${pnl >= 0 ? "pct-up" : "pct-down"}">${pnl >= 0 ? "+" : ""}${pnl.toFixed(0)}</td>

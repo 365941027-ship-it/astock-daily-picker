@@ -49,6 +49,11 @@ from daily_picker.verify import run_verify  # noqa: E402
 from daily_picker.market_signal import market_signal, watch_sectors  # noqa: E402
 from daily_picker.market_signal import INDEX_INFO, index_signal_series  # noqa: E402
 from daily_picker.news import fetch_news, news_summary  # noqa: E402
+from daily_picker.risks import (  # noqa: E402
+    fetch_risk_map,
+    risk_verdict,
+    risk_warnings,
+)
 
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -83,6 +88,7 @@ def cand_json(c, full: bool = False) -> Dict:
         "score": _f(c.score, 1),
         "category": c.category,
         "note": c.note,
+        "risks": getattr(c, "risks", []),
     }
     if full:
         d["reasons"] = c.reasons
@@ -254,9 +260,36 @@ def run_pipeline(params: Dict):
                 # 大盘不宜入场：不推荐任何个股，仅空仓观察
                 result["priority"] = []
                 result["strong"] = []
+            # 事件排雷：仅当日候选生效（历史回放不套用今日公告，避免未来函数）
+            risk_rejected: List[Dict] = []
+            try:
+                cand_codes = [c.code for c in result["priority"] + result["strong"]]
+                if cand_codes:
+                    risk_map = fetch_risk_map(cand_codes, cfg)
+                    for bucket in ("priority", "strong"):
+                        kept: List[Candidate] = []
+                        for c in result[bucket]:
+                            risks = risk_map.get(c.code, [])
+                            veto, reasons = risk_verdict(risks)
+                            if veto:
+                                risk_rejected.append({
+                                    "code": c.code,
+                                    "name": c.name,
+                                    "reasons": reasons,
+                                    "close": c.close,
+                                    "pct_chg": c.pct_chg,
+                                })
+                                continue
+                            c.risks = [r["note"] for r in risks]
+                            c.risk_detail = risks
+                            kept.append(c)
+                        result[bucket] = kept
+            except Exception as exc:  # noqa: BLE001 - 排雷失败不阻塞主流程
+                JOB.log(f"事件排雷失败（降级为不排雷）：{exc}")
+            result["risk_rejected"] = risk_rejected
         else:
             result = {
-                "priority": [], "strong": [], "excluded": [],
+                "priority": [], "strong": [], "excluded": [], "risk_rejected": [],
                 "stats": {"prefiltered": 0, "analyzed": 0, "no_kline": 0},
             }
         result["snapshot"] = snapshot or []
@@ -308,6 +341,7 @@ def run_pipeline(params: Dict):
             "priority": [cand_json(c) for c in result["priority"]],
             "strong": [cand_json(c) for c in result["strong"]],
             "excluded": [cand_json(c, full=True) for c in result["excluded"]],
+            "risk_rejected": result.get("risk_rejected", []),
             "files": files,
             "title": content["title"],
             "intro": content["intro"],

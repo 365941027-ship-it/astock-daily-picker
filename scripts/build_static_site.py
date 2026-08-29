@@ -38,6 +38,11 @@ from daily_picker.config import Config, cn_now  # noqa: E402
 from daily_picker.data_fetch import fetch_sectors  # noqa: E402
 from daily_picker.market_signal import market_signal, watch_sectors  # noqa: E402
 from daily_picker.news import fetch_news, news_summary  # noqa: E402
+from daily_picker.risks import (  # noqa: E402
+    fetch_risk_map,
+    load_risk_cache,
+    save_risk_cache,
+)
 
 ROOT = BASE
 WEB_DIR = os.path.join(ROOT, "web")
@@ -66,13 +71,13 @@ def _copy_static_assets() -> None:
     with open(os.path.join(WEB_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
     # 更新缓存版本号，避免 GitHub Pages 上的浏览器继续用旧 JS/CSS
-    html = html.replace('style.css?v=13', 'style.css?v=14')
-    html = html.replace('app.js?v=13', 'app.js?v=14')
+    html = html.replace('style.css?v=13', 'style.css?v=15')
+    html = html.replace('app.js?v=13', 'app.js?v=15')
     # 在 app.js 引入前注入静态模式标记
     if "window.STATIC_MODE" not in html:
         html = html.replace(
-            '  <script src="app.js?v=14"></script>',
-            '  <script>window.STATIC_MODE = true;</script>\n  <script src="app.js?v=14"></script>',
+            '  <script src="app.js?v=15"></script>',
+            '  <script>window.STATIC_MODE = true;</script>\n  <script src="app.js?v=15"></script>',
             1,
         )
     with open(os.path.join(SITE_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -159,9 +164,31 @@ def _build_core(cfg: Config) -> None:
             _write_json(os.path.join(VERIFY_OUT, f"{day}.json"), payload)
     print(f"[核对] 导出 {len(vindex.get('days', []))} 个核对日")
 
-    # ---- 最新选股结果（取回放里最后一个交易日，并补大盘门控） ----
+    # ---- 最新选股结果（优先取 last_result.json：含事件排雷与当日候选；否则退回放） ----
     latest_day = rindex["days"][-1] if rindex.get("days") else ""
-    payload = webapp.load_replay_day(latest_day) or {}
+    last_result = None
+    try:
+        with open(webapp.RESULT_FILE, encoding="utf-8") as f:
+            last_result = json.load(f).get("result") or {}
+    except Exception:
+        pass
+    if last_result and last_result.get("data_date") and last_result["data_date"] >= latest_day:
+        payload = {
+            "pool": len(last_result.get("priority", [])) + len(last_result.get("strong", [])),
+            "priority": last_result.get("priority", []),
+            "strong": last_result.get("strong", []),
+            "excluded": last_result.get("excluded", []),
+            "risk_rejected": last_result.get("risk_rejected", []),
+        }
+        latest_day = last_result["data_date"]
+        # 当日候选已带 risks；无则回退全量 risks.json
+        has_risk_field = any(c.get("risks") for c in payload["priority"] + payload["strong"])
+        if not has_risk_field:
+            risk_cache = load_risk_cache()
+            for c in payload["priority"] + payload["strong"]:
+                c["risks"] = [r.get("note") for r in risk_cache.get(str(c["code"]).zfill(6), [])]
+    else:
+        payload = webapp.load_replay_day(latest_day) or {}
     sig = market_signal(cfg)
     verdict = sig.get("verdict", "") if sig.get("ok") else ""
     indices = {}
@@ -183,6 +210,7 @@ def _build_core(cfg: Config) -> None:
         "priority": payload.get("priority", []),
         "strong": payload.get("strong", []),
         "excluded": payload.get("excluded", []),
+        "risk_rejected": payload.get("risk_rejected", []),
         "market_verdict": verdict,
         "indices": indices,
         "files": files,
@@ -203,6 +231,19 @@ def _build_core(cfg: Config) -> None:
     except Exception as exc:  # noqa: BLE001
         sectors = {"rows": [], "error": str(exc)}
     _write_json(os.path.join(DATA_DIR, "sectors.json"), sectors)
+
+    # ---- 事件排雷：抓取全部候选风险公告并缓存 ----
+    try:
+        risk_codes = _collect_symbols()
+        risk_map = fetch_risk_map(risk_codes, cfg)
+        save_risk_cache(risk_map)
+        _write_json(os.path.join(DATA_DIR, "risks.json"), risk_map)
+        veto_codes = {c for c, rs in risk_map.items() if any(r.get("veto") for r in rs)}
+        print(f"[排雷] 检查 {len(risk_codes)} 只 → 命中风险 {len(risk_map)} 只，其中一票否决 {len(veto_codes)} 只")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[排雷] 抓取失败（使用缓存）：{exc}")
+        risk_map = load_risk_cache()
+        _write_json(os.path.join(DATA_DIR, "risks.json"), risk_map)
 
 
 def _build_quotes(codes: list[str]) -> None:

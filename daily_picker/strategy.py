@@ -16,6 +16,7 @@ import os
 from typing import Dict, List, Optional
 
 from .config import Config
+from .risks import load_risk_cache
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE_ROOT = os.path.join(BASE, "daily_picker", "cache")
@@ -199,6 +200,7 @@ def build_cards(replay_payload: Dict, verdict: str, params: Optional[Dict] = Non
     params 可覆盖止损/止盈；默认按推荐方案 G（止盈8%、弱市禁买）。
     """
     p = _merge_params(params or {"target_pct": 0.08, "skip_weak": True})
+    risk_cache = load_risk_cache()
     cards: List[Dict] = []
     cands = replay_payload.get("priority", []) + replay_payload.get("strong", [])
     for c in cands:
@@ -211,6 +213,8 @@ def build_cards(replay_payload: Dict, verdict: str, params: Optional[Dict] = Non
         ma5 = sum(closes[-5:]) / 5 if len(closes) >= 5 else None
         support = round(max(ma5, last["low"]), 2) if ma5 else round(last["low"], 2)
         close = last["close"]
+        risks = [r.get("note", "") for r in risk_cache.get(code, []) if not r.get("veto")]
+        vetoed = [r.get("note", "") for r in risk_cache.get(code, []) if r.get("veto")]
         if p["skip_weak"] and verdict in ("不适合入场", "观望为主"):
             position = "弱市禁买：等待大盘转强再入场"
         elif verdict == "不适合入场":
@@ -235,5 +239,7 @@ def build_cards(replay_payload: Dict, verdict: str, params: Optional[Dict] = Non
             "hold_days": int(p.get("hold_days", 5)),
             "position": position,
             "note": c.get("note") or "",
+            "risks": risks,
+            "vetoed": vetoed,
         })
     return cards
