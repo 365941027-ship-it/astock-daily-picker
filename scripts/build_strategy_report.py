@@ -51,6 +51,16 @@ PRESETS = [
         "desc": "止损5% · 止盈8% · 持有3天 · 弱市禁买",
         "params": {"stop_pct": 0.05, "target_pct": 0.08, "hold_days": 3, "skip_weak": True},
     },
+    {
+        "name": "G 弱市禁买+止盈8%",
+        "desc": "止损7% · 止盈8% · 持有5天 · 大盘弱势不交易",
+        "params": {"target_pct": 0.08, "skip_weak": True},
+    },
+    {
+        "name": "H 弱市禁买+止盈12%",
+        "desc": "止损7% · 止盈12% · 持有5天 · 大盘弱势不交易",
+        "params": {"target_pct": 0.12, "skip_weak": True},
+    },
 ]
 
 
