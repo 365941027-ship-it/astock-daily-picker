@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-store">
   <title>A股每日选股</title>
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
   <div class="layout">
@@ -79,6 +79,12 @@
         <div class="section-block">
           <div class="section-head"><h2>剔除或降级观察</h2><span class="count-badge gray" id="excCount">0</span></div>
           <ul id="excludedList" class="excluded-list"></ul>
+        </div>
+
+        <div class="section-block">
+          <div class="section-head"><h2>排雷剔除（一票否决）</h2><span class="count-badge risk" id="riskCount">0</span></div>
+          <ul id="riskRejected" class="excluded-list" hidden></ul>
+          <p class="hint" id="riskHint" hidden>无</p>
         </div>
 
         <div class="actions" id="downloadActions">
@@ -271,6 +277,6 @@
     }
   </script>
   <script>window.STATIC_MODE = true;</script>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

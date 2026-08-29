@@ -175,6 +175,9 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 }
 .count-badge.warn { background: #fff3e0; color: var(--warn); }
 .count-badge.gray { background: #eef1f5; color: var(--sub); }
+.count-badge.risk { background: #fff0f0; color: #c92a2a; }
+.risk-badge { display: inline-block; font-size: 11px; line-height: 1.5; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #fff3bf; color: #b08900; border: 1px solid #ffe08a; vertical-align: 1px; }
+.risk-badge.risk-veto { background: #ffe3e3; color: #c92a2a; border-color: #ffc9c9; font-weight: 600; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
 th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
