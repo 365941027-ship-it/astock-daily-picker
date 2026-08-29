@@ -17,6 +17,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
 
 from daily_picker.config import Config, cn_now  # noqa: E402
+from daily_picker.risks import load_risk_cache  # noqa: E402
 from daily_picker.strategy import build_cards, run_backtest  # noqa: E402
 
 
@@ -62,11 +63,18 @@ PRESETS = [
         "desc": "止损7% · 止盈12% · 持有5天 · 大盘弱势不交易",
         "params": {"target_pct": 0.12, "skip_weak": True},
     },
+    {
+        "name": "I G+仅无风险候选",
+        "desc": "G规则 + 有风险提示的候选不参与交易",
+        "params": {"target_pct": 0.08, "skip_weak": True, "skip_risk": True},
+        "recommended": True,
+    },
 ]
 
 
 def load_verify_entries() -> list[dict]:
     entries: list[dict] = []
+    risk_cache = load_risk_cache()
     files = sorted(
         f for f in glob.glob(os.path.join(BASE, "daily_picker", "cache", "verify", "*.json"))
         if not f.endswith("index.json")
@@ -78,6 +86,7 @@ def load_verify_entries() -> list[dict]:
             for e in day.get("entries", []):
                 e.setdefault("date", day.get("date", ""))
                 e.setdefault("checked_on", day.get("checked_on", ""))
+                e["has_risk"] = bool(risk_cache.get(str(e.get("code") or "").zfill(6)))
                 entries.append(e)
         except Exception:
             continue

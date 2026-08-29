@@ -27,6 +27,7 @@ DEFAULT_PARAMS: Dict[str, object] = {
     "hold_days": 5,       # 最长持有 5 个交易日
     "chase_skip": 1.05,   # 执行日开盘高开超支撑 5% 放弃（不追高）
     "skip_weak": False,   # 大盘弱势日是否直接过滤（不触发交易）
+    "skip_risk": False,   # 有风险提示的候选是否直接过滤（不触发交易）
 }
 
 
@@ -75,6 +76,13 @@ def simulate(entry: Dict, bars: List[Dict], params: Optional[Dict] = None) -> Di
             "reason": "弱市过滤：大盘判定弱势，按纪律不交易",
             "code": code,
             "env_weak": True,
+        }
+    if p["skip_risk"] and entry.get("has_risk"):
+        return {
+            "status": "no_trigger",
+            "reason": "风险过滤：候选存在风险提示，按纪律不交易",
+            "code": code,
+            "has_risk": True,
         }
     bd = _by_date(bars)
     c_bar = bd.get(checked_on)
