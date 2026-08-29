@@ -57,6 +57,19 @@ def cache_dir_stale(cache_root: str, data_date: str) -> bool:
     return True
 
 
+def already_up_to_date(data_date: str) -> bool:
+    """若回放索引最后一天已覆盖目标日期，说明当天数据已更新，无需重跑。"""
+    base = os.path.dirname(os.path.abspath(__file__))
+    idx_path = os.path.join(base, "daily_picker", "cache", "replay", "index.json")
+    try:
+        with open(idx_path, encoding="utf-8") as f:
+            idx = json.load(f)
+        days = idx.get("days") or []
+        return bool(days and days[-1] >= data_date)
+    except Exception:
+        return False
+
+
 def run_pick(data_date: str, proxy: str = "", refresh: bool = False) -> bool:
     params = {"date": data_date}
     if refresh or cache_dir_stale(os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_picker", "cache"), data_date):
@@ -133,6 +146,9 @@ def main() -> int:
 
     data_date = (args.date or resolve_data_date(None).isoformat())
     print(f"== 每日盘后更新 {data_date} ==")
+    if already_up_to_date(data_date):
+        print(f"数据已更新到 {data_date}（回放索引最后一天），本次跳过。")
+        return 0
     if args.offline:
         webapp.run_pipeline({"date": data_date, "offline": True})
         wait_job()

@@ -26,22 +26,24 @@ if [ -n "$PROXY" ]; then
   export HTTPS_PROXY="$PROXY" HTTP_PROXY="$PROXY" ALL_PROXY="$PROXY"
 fi
 
-# 用 git worktree 把 site/ 同步到 gh-pages 分支
-WT="$(git worktree list --porcelain | awk '/^worktree /{p=$0} /branch refs\/heads\/gh-pages/{sub(/^worktree /, "", p); print p; exit}')"
-if [ -z "$WT" ]; then
-  WT="$(mktemp -d /tmp/astock-gh-pages.XXXXXX)"
-  git worktree add "$WT" -b gh-pages >/dev/null 2>&1 || git worktree add "$WT" gh-pages >/dev/null 2>&1
-fi
+# 用独立临时克隆同步 gh-pages 分支（避免 worktree 残留/损坏问题）
+PUB="$(mktemp -d /tmp/astock-gh-pages-pub.XXXXXX)"
+REMOTE="https://github.com/365941027-ship-it/astock-daily-picker.git"
+cd "$PUB"
+git init -q
+git remote add origin "$REMOTE"
+git fetch -q --depth 1 origin gh-pages 2>/dev/null || git fetch -q --depth 1 origin main
+git checkout -q -b gh-pages FETCH_HEAD 2>/dev/null || git checkout -q --orphan gh-pages
 
-rsync -a --delete --exclude ".git" "$ROOT/site/" "$WT/"
-cd "$WT"
+rsync -a --delete --exclude ".git" "$ROOT/site/" "$PUB/"
 git add -A
 if git diff --cached --quiet; then
   echo "没有内容变更，跳过推送。"
 else
   git commit -m "静态站点更新 $(date '+%Y-%m-%d %H:%M')"
-  git push origin gh-pages
+  git push -q origin gh-pages
   echo "已推送 gh-pages"
 fi
+rm -rf "$PUB"
 
 echo "== 完成 =="
