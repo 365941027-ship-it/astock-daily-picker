@@ -132,6 +132,25 @@ def publish_static(proxy: str = "") -> bool:
         return False
 
 
+def build_strategy_report(proxy: str = "") -> bool:
+    """生成策略回测报告（推荐方案 G：弱市禁买 + 止盈8%），输出 site/strategy.html。"""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "build_strategy_report.py")
+    cmd = [sys.executable, script]
+    if proxy:
+        cmd.append("--proxy")
+        cmd.append(proxy)
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if r.returncode == 0:
+            print("[策略] 策略回测报告已生成（推荐方案 G）")
+            return True
+        print(f"[策略] 生成失败：{r.stdout} {r.stderr}")
+        return False
+    except Exception as exc:  # noqa: BLE001
+        print(f"[策略] 生成异常：{exc}")
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="A股每日盘后自动更新")
     parser.add_argument("--date", default=None, help="数据日期 YYYY-MM-DD，默认最近交易日")
@@ -159,6 +178,7 @@ def main() -> int:
     ok2 = run_replay_update(data_date, args.history_start)
     ok3 = run_verify_update(data_date, args.history_start)
     if not args.no_publish and (ok1 or ok2 or ok3):
+        build_strategy_report(args.proxy)
         publish_static(args.proxy)
     if args.send_email:
         send_email(data_date, args.to)
