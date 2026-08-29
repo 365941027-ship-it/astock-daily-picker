@@ -55,6 +55,7 @@ PRESETS = [
         "name": "G 弱市禁买+止盈8%",
         "desc": "止损7% · 止盈8% · 持有5天 · 大盘弱势不交易",
         "params": {"target_pct": 0.08, "skip_weak": True},
+        "recommended": True,
     },
     {
         "name": "H 弱市禁买+止盈12%",
@@ -181,6 +182,9 @@ td:first-child,th:first-child{text-align:left}
 .tag{font-size:11px;padding:2px 8px;border-radius:6px;background:#f1f3f5;color:#495057}
 .tag.red{background:#fff0f0;color:#c92a2a}.tag.yellow{background:#fff9e6;color:#b08900}.tag.green{background:#ebfbee;color:#2b8a3e}.tag.observe{background:#e7f5ff;color:#1971c2}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.row-rec{background:#fffbe6!important}
+.row-rec td{box-shadow:inset 3px 0 0 #f59f00}
+.rec-badge{display:inline-block;font-size:11px;font-weight:600;color:#fff;background:#f59f00;border-radius:6px;padding:1px 7px;margin-left:6px;vertical-align:1px}
 .scard{border:1px solid var(--line);border-radius:14px;padding:16px 18px;background:#fff}
 .scard .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
 .scard .name{font-size:16px;font-weight:700}
@@ -199,7 +203,7 @@ td:first-child,th:first-child{text-align:left}
   <div class="hero">
     <div>
       <h1>策略回测 · 短线观察系统</h1>
-      <p>回踩支撑买入 · 7% 止损 · 10% 止盈 · 最长 5 个交易日 · 数据截至 __DATE__</p>
+      <p>推荐方案 G：大盘弱势禁买 · 7% 止损 · 8% 止盈 · 最长 5 个交易日 · 数据截至 __DATE__</p>
     </div>
     <span class="badge">模拟盘原型 · 仅供研究</span>
   </div>
@@ -226,9 +230,9 @@ td:first-child,th:first-child{text-align:left}
       <div class="rule"><b>触发</b><span>次日回踩支撑位不破</span></div>
       <div class="rule"><b>执行</b><span>次次日开盘买入，高开超5%放弃</span></div>
       <div class="rule"><b>止损</b><span>买入价 -7%</span></div>
-      <div class="rule"><b>止盈</b><span>买入价 +10%</span></div>
+      <div class="rule"><b>止盈</b><span>买入价 +8%（推荐）</span></div>
       <div class="rule"><b>期限</b><span>最长持有 5 个交易日</span></div>
-      <div class="rule"><b>仓位</b><span>按大盘研判：空仓 / ≤5% / ≤10%</span></div>
+      <div class="rule"><b>仓位</b><span>大盘弱势禁止买入（推荐）</span></div>
     </div>
   </div>
 
@@ -293,8 +297,8 @@ const CMP = DATA.comparison;
 const COLORS = ["#2563eb","#e03131","#2f9e44","#f59f00","#9c36b5","#0ca678","#f76707","#12b886"];
 const cmpTb = document.getElementById("cmpTable");
 cmpTb.innerHTML = `<thead><tr><th>方案</th><th>规则说明</th><th class="num">交易次数</th><th class="num">胜率</th><th class="num">累计收益</th><th class="num">最大回撤</th><th class="num">盈亏比</th><th class="num">超额收益</th></tr></thead><tbody>` +
-CMP.map((c,i)=>`<tr>
-  <td><b>${c.name}</b></td><td class="desc" style="text-align:left;color:var(--sub);font-size:12px">${c.desc}</td>
+CMP.map((c,i)=>`<tr class="${c.recommended?"row-rec":""}">
+  <td><b>${c.name}</b>${c.recommended?' <span class="rec-badge">推荐</span>':""}</td><td class="desc" style="text-align:left;color:var(--sub);font-size:12px">${c.desc}</td>
   <td class="num">${c.n_trades}</td>
   <td class="num">${fmt(c.win_rate,1)}%</td>
   <td class="num ${c.cum_return>=0?"t-red":"t-green"}">${c.cum_return>=0?"+":""}${fmt(c.cum_return)}%</td>
@@ -373,7 +377,8 @@ def main() -> int:
 
     print("== 生成策略回测报告 ==")
     entries = load_verify_entries()
-    result = run_backtest(entries, params=PRESETS[0]["params"])
+    rec = next((p for p in PRESETS if p.get("recommended")), PRESETS[0])
+    result = run_backtest(entries, params=rec["params"])
     trades = result["trades"]
     print(f"核对记录 {len(entries)} 条 → 交易 {result['n_trades']} 笔（未触发 {result['no_trigger']}，跳过 {result['skip']}）")
     print(f"胜率 {result['win_rate']}% | 累计收益 {result['cum_return']}% | 最大回撤 {result['max_drawdown']}% | 盈亏比 {result['profit_factor']}")
@@ -414,6 +419,7 @@ def main() -> int:
             "profit_factor": r["profit_factor"],
             "excess_return": excess,
             "curve": curve,
+            "recommended": bool(pr.get("recommended")),
         })
         print(f"  对比 {pr['name']}: {r['n_trades']}笔 | 胜率{r['win_rate']}% | 收益{r['cum_return']}% | 回撤{r['max_drawdown']}% | 超额{excess}%")
     _, bench_aligned = align_series(all_points, bench_closes, all_dates)
@@ -426,7 +432,7 @@ def main() -> int:
             verdict = json.load(f).get("market_verdict", "")
     except Exception:
         pass
-    cards = build_cards(replay or {}, verdict)
+    cards = build_cards(replay or {}, verdict, params=rec["params"])
     print(f"策略卡：{len(cards)} 张（{card_date}）")
 
     data = {

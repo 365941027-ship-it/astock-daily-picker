@@ -193,8 +193,12 @@ def run_backtest(verify_entries: List[Dict], params: Optional[Dict] = None) -> D
     }
 
 
-def build_cards(replay_payload: Dict, verdict: str) -> List[Dict]:
-    """为最新候选生成策略卡（回踩触发价 / 止损 / 目标 / 期限 / 建议仓位）。"""
+def build_cards(replay_payload: Dict, verdict: str, params: Optional[Dict] = None) -> List[Dict]:
+    """为最新候选生成策略卡（回踩触发价 / 止损 / 目标 / 期限 / 建议仓位）。
+
+    params 可覆盖止损/止盈；默认按推荐方案 G（止盈8%、弱市禁买）。
+    """
+    p = _merge_params(params or {"target_pct": 0.08, "skip_weak": True})
     cards: List[Dict] = []
     cands = replay_payload.get("priority", []) + replay_payload.get("strong", [])
     for c in cands:
@@ -207,12 +211,16 @@ def build_cards(replay_payload: Dict, verdict: str) -> List[Dict]:
         ma5 = sum(closes[-5:]) / 5 if len(closes) >= 5 else None
         support = round(max(ma5, last["low"]), 2) if ma5 else round(last["low"], 2)
         close = last["close"]
-        if verdict == "不适合入场":
+        if p["skip_weak"] and verdict in ("不适合入场", "观望为主"):
+            position = "弱市禁买：等待大盘转强再入场"
+        elif verdict == "不适合入场":
             position = "空仓观察，不推荐入场"
         elif verdict == "观望为主":
             position = "轻仓试探，单票 ≤5%"
         else:
             position = "单票 ≤10%，不集中"
+        stop_pct = p.get("stop_pct", 0.07)
+        target_pct = p.get("target_pct", 0.08)
         cards.append({
             "code": code,
             "name": c.get("name") or code,
@@ -222,9 +230,9 @@ def build_cards(replay_payload: Dict, verdict: str) -> List[Dict]:
             "pct_chg": c.get("pct_chg"),
             "support": support,
             "trigger": f"回踩 {support:.2f} 附近不破并转强",
-            "stop": round(support * 0.95, 2),
-            "target": round(close * 1.08, 2),
-            "hold_days": 3,
+            "stop": round(support * (1 - stop_pct * 0.7), 2),
+            "target": round(close * (1 + target_pct), 2),
+            "hold_days": int(p.get("hold_days", 5)),
             "position": position,
             "note": c.get("note") or "",
         })
