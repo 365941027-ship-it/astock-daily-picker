@@ -29,7 +29,7 @@ import webapp  # noqa: E402
 from daily_picker.cli import _parse_date, resolve_data_date  # noqa: E402
 
 
-def wait_job(timeout: int = 300) -> bool:
+def wait_job(timeout: int = 900) -> bool:
     t0 = time.time()
     while time.time() - t0 < timeout:
         if webapp.JOB.state in ("done", "error"):

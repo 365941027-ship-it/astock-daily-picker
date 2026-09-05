@@ -1,0 +1,88 @@
+name: A股每日更新与发布
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "probe=只测行情连通性; full=完整盘后更新并发布"
+        type: choice
+        default: full
+        options: [full, probe]
+      date:
+        description: "数据日期 YYYY-MM-DD（留空=最近交易日）"
+        type: string
+        default: ""
+  schedule:
+    # 北京时间 18:05 = UTC 10:05，周一至周五
+    - cron: "5 10 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install docs dependency (optional)
+        run: |
+          pip install --quiet python-docx || echo "python-docx 安装失败，降级为不生成 docx"
+
+      - name: 行情连通性探测
+        id: probe
+        run: |
+          echo "--- 东财实时 ---"
+          curl -s -m 15 -A "Mozilla/5.0" "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&secids=1.600000&fields=f2,f12,f14" | head -c 300 || echo "东财实时不可达"
+          echo
+          echo "--- 东财日K ---"
+          curl -s -m 15 -A "Mozilla/5.0" "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.600000&klt=101&fqt=1&lmt=5&fields1=f1,f2&fields2=f51,f52,f53,f54,f55,f56" | head -c 300 || echo "东财日K不可达"
+          echo
+          echo "--- 东财快照 ---"
+          curl -s -m 20 -A "Mozilla/5.0" "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f6,f8,f12,f14" | head -c 300 || echo "东财快照不可达"
+          echo
+          echo "--- 新浪日K ---"
+          curl -s -m 15 -A "Mozilla/5.0" "https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_data=/CN_MarketDataService.getKLineData?symbol=sh600000&scale=240&ma=no&datalen=5" | head -c 200 || echo "新浪不可达"
+          echo
+          echo "--- 指数 ---"
+          curl -s -m 15 -A "Mozilla/5.0" "https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_data=/CN_MarketDataService.getKLineData?symbol=sh000001&scale=240&ma=no&datalen=5" | head -c 200 || echo "指数不可达"
+          echo
+
+      - name: Probe 模式仅到此为止
+        if: github.event.inputs.mode == 'probe'
+        run: echo "连通性探测完成（mode=probe），跳过完整更新"
+
+      - name: 计算目标日期
+        id: calc
+        if: github.event.inputs.mode != 'probe'
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            echo "DATE=${{ github.event.inputs.date }}" >> "$GITHUB_ENV"
+          else
+            echo "DATE=" >> "$GITHUB_ENV"
+          fi
+          date -u "+UTC now: %F %T"
+
+      - name: 完整盘后更新（选股→排雷→回放→核对→策略→站点→gh-pages）
+        if: github.event.inputs.mode != 'probe'
+        env:
+          PUBLISH_REMOTE: "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+        run: |
+          python3 daily_update.py ${DATE:+--date "$DATE"}
+
+      - name: 验证发布结果
+        if: github.event.inputs.mode != 'probe'
+        run: |
+          sleep 20
+          curl -s -m 30 "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/latest.json" | head -c 300 || echo "（Pages 构建可能仍在进行）"
+          echo
+          echo "workflow 完成"

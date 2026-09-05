@@ -29,6 +29,9 @@ fi
 # 用独立临时克隆同步 gh-pages 分支（避免 worktree 残留/损坏问题）
 PUB="$(mktemp -d /tmp/astock-gh-pages-pub.XXXXXX)"
 REMOTE="https://github.com/365941027-ship-it/astock-daily-picker.git"
+if [ -n "${PUBLISH_REMOTE:-}" ]; then
+  REMOTE="$PUBLISH_REMOTE"
+fi
 cd "$PUB"
 git init -q
 git remote add origin "$REMOTE"
@@ -36,6 +39,8 @@ git fetch -q --depth 1 origin gh-pages 2>/dev/null || git fetch -q --depth 1 ori
 git checkout -q -b gh-pages FETCH_HEAD 2>/dev/null || git checkout -q --orphan gh-pages
 
 rsync -a --delete --exclude ".git" "$ROOT/site/" "$PUB/"
+git config user.name "astock-bot" || true
+git config user.email "41898282+github-actions[bot]@users.noreply.github.com" || true
 git add -A
 if git diff --cached --quiet; then
   echo "没有内容变更，跳过推送。"
