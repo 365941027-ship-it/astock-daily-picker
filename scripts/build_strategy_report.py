@@ -529,7 +529,9 @@ def main() -> int:
         "failure_cases": failure_cases,
         "n_failures": len(loss_trades),
     }
-    with open(os.path.join(BASE, "site", "data", "metrics.json"), "w", encoding="utf-8") as f:
+    metrics_path = os.path.join(BASE, "site", "data", "metrics.json")
+    os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
+    with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False)
     print(f"成绩单/失败案例已输出：{len(failure_cases)} 条案例")
     html = (
