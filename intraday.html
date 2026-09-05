@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>盘中盯盘 · A股每日选股</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--red:#e03131;--green:#2f9e44;--amber:#f08c00;--ink:#1f2733;--sub:#667085;--line:#e8edf4;--bg:#f3f5f9;--card:#fff}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:70px}
+.wrap{max-width:860px;margin:0 auto;padding:18px 14px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.top h1{font-size:20px}
+.live{font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;background:#e6f7ee;color:#087f5b}
+.live.off{background:#f1f3f5;color:#868e96}
+.meta{font-size:12px;color:var(--sub);margin-bottom:14px}
+.banner{border-radius:14px;padding:14px 16px;color:#fff;margin:12px 0;font-size:14px}
+.banner.bad{background:linear-gradient(135deg,#e03131,#c92a2a)}
+.banner.mid{background:linear-gradient(135deg,#1c7ed6,#1971c2)}
+.banner.good{background:linear-gradient(135deg,#e8590c,#f08c00)}
+.banner small{display:block;opacity:.9;font-size:12px;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;border-left:5px solid #adb5bd}
+.card.st-broke{border-left-color:#e03131;background:#fff5f5}
+.card.st-weak{border-left-color:#e8590c;background:#fff9ec}
+.card.st-tested{border-left-color:#f08c00;background:#fffbe6}
+.card.st-near{border-left-color:#1971c2}
+.card.st-target{border-left-color:#2f9e44;background:#f4fbf6}
+.card.st-watch,.card.st-nodata{opacity:.92}
+.ch{display:flex;justify-content:space-between;align-items:flex-start}
+.nm{font-size:15px;font-weight:700}
+.code{font-size:11px;color:var(--sub)}
+.tag{font-size:10px;padding:2px 8px;border-radius:6px;background:#f1f3f5;color:#495057;margin-top:5px}
+.price-row{display:flex;align-items:baseline;gap:10px;margin:8px 0 4px}
+.price{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.chg{font-size:12px;font-weight:600}
+.up{color:var(--red)}.down{color:var(--green)}
+.levels{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;color:var(--sub);margin:8px 0}
+.levels b{display:block;font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
+.note{font-size:12px;line-height:1.6;background:#fafbfd;border-radius:8px;padding:8px 10px;color:#3d4754}
+.risk{font-size:11px;color:#b08900;margin-top:6px}
+.status-txt{font-size:12px;font-weight:600;margin-top:8px}
+.empty{text-align:center;color:var(--sub);padding:40px 0;font-size:14px}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--sub);margin-top:14px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.hint{font-size:12px;color:var(--sub);background:#fff;border:1px dashed #cbd5e1;border-radius:10px;padding:12px 14px;margin-top:14px}
+.refresh{font-size:12px;color:#2563eb;cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>盘中盯盘助手</h1>
+    <span class="live off" id="liveBadge">连接中…</span>
+  </div>
+  <div class="meta" id="meta">加载中…</div>
+  <div id="banner"></div>
+  <div id="content" class="empty">正在读取盯盘状态…</div>
+  <div class="hint">
+    盯盘数据由本机 <b>scripts/intraday_monitor.py</b> 实时生成（约每 30 秒刷新一次快照）。
+    手机查看需与电脑在同一 Wi-Fi，访问本机局域网地址（http://电脑IP:8235/intraday）。
+    想收到“回踩到位/破止损”的推送，需在 <b>~/.config/astock_push.json</b> 配置 webhook。
+  </div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const LS='astock-intraday-bell';
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+const fmt=v=>v===null||v===undefined?"—":Number(v).toFixed(2);
+const cls=v=>v===null||v===undefined?"":(v>0?"up":"down");
+const chg=v=>v===null||v===undefined?"—":(v>0?"+":"")+Number(v).toFixed(2)+"%";
+const statusMap={
+  broke:["已破止损 · 放弃","st-broke","放弃"],
+  weak:["跌破支撑 · 等站回","st-weak","注意"],
+  tested:["回踩站回 · 触发候选","st-tested","触发"],
+  target:["触及目标 · 可落袋","st-target","达标"],
+  near:["接近支撑","st-near","接近"],
+  watch:["未到支撑 · 观察","st-watch","观察"],
+  nodata:["暂无行情","st-nodata","—"]
+};
+let last={};
+function bell(code,name,note){
+  try{
+    const n=Date.now(); const k=LS+":"+code;
+    const old=JSON.parse(localStorage.getItem(k)||"{}");
+    if(n-(old.t||0)>300000){ // 同票最多每5分钟提醒一次，避免刷屏
+      if(Notification&&Notification.permission==="granted"){new Notification(`盯盘 · ${name}`,{body:note});}
+      if(old.n!==note){localStorage.setItem(k,JSON.stringify({t:n,n:note}));}
+    }
+  }catch(e){}
+}
+async function load(){
+  try{
+    const r=await fetch("/api/intraday",{cache:"no-store"});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||"no data");
+    const session=d.in_session;
+    $("#liveBadge").textContent=session?"盯盘中":"非交易时段";
+    $("#liveBadge").className="live"+(session?"":" off");
+    $("#meta").innerHTML=`数据日 ${esc(d.data_date||"")} · 更新 ${(d.generated_at||"").replace("T"," ").slice(5,16)} · 共 ${(d.items||[]).length} 只`;
+    const v=d.market_verdict||"";
+    const bn=$("#banner");
+    if(v==="不适合入场"){bn.className="banner bad";bn.innerHTML="今日大盘：不适合入场 —— 只做空仓观察，不新增仓位。<small>盯盘仅用于熟悉规则，触发也请按纪律等待大盘转强。</small>";bn.hidden=false;}
+    else if(v==="观望为主"){bn.className="banner mid";bn.innerHTML="今日大盘：观望为主 —— 轻仓试错，单票 ≤5%。<small>等回踩支撑不破再考虑，不追高。</small>";bn.hidden=false;}
+    else if(v){bn.className="banner good";bn.innerHTML="今日大盘：适合入场 —— 优选回踩不破品种。<small>仍按策略卡触发价与止损执行。</small>";bn.hidden=false;}
+    else{bn.hidden=true;}
+    const box=$("#content");
+    if(!d.items||!d.items.length){box.className="empty";box.innerHTML="当前无候选可盯（弱市空仓或数据未生成）。";return;}
+    box.className="grid";
+    box.innerHTML=d.items.map(i=>{
+      const sm=statusMap[i.status]||statusMap.watch;
+      const changed=last[i.code]&&last[i.code]!==i.status;
+      if(changed&&(i.status==="tested"||i.status==="broke"||i.status==="weak"||i.status==="target")){bell(i.code,i.name,i.note);}
+      return `<div class="card ${sm[1]}">
+        <div class="ch"><div>
+          <div class="nm">${esc(i.name)} <span class="code">${esc(i.code)}</span></div>
+          <span class="tag">${esc(i.category||"")} · ${esc(i.structure||"")}</span>
+        </div><div class="price ${cls(i.pct_chg)}">${fmt(i.price)}</div></div>
+        <div class="chg ${cls(i.pct_chg)}">${chg(i.pct_chg)}</div>
+        <div class="levels">
+          <div>支撑<b>${fmt(i.support)}</b></div>
+          <div>止损<b style="color:#e03131">${fmt(i.stop)}</b></div>
+          <div>目标<b style="color:#2f9e44">${fmt(i.target)}</b></div>
+        </div>
+        <div class="status-txt" style="color:${i.status==="broke"?"#e03131":i.status==="tested"?"#f08c00":i.status==="target"?"#2f9e44":"#1971c2"}">${sm[0]}</div>
+        <div class="note">${esc(i.note)}</div>
+        ${i.risks&&i.risks.length?`<div class="risk">⚠ ${esc(i.risks.slice(0,2).join("；"))}</div>`:""}
+      </div>`;
+    }).join("");
+    d.items.forEach(i=>{last[i.code]=i.status;});
+  }catch(e){
+    $("#content").className="empty";
+    $("#content").innerHTML=`无法读取盯盘状态。<br><br>请先在电脑上运行：<br><b>python scripts/intraday_monitor.py --watch</b><br>或确认本地选股服务已启动。`;
+    $("#liveBadge").textContent="未连接";
+  }
+}
+load();
+setInterval(load,10000);
+if("Notification"in window&&Notification.permission==="default"){Notification.requestPermission();}
+</script>
+</body>
+</html>
