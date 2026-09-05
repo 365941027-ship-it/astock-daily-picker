@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>策略回测 · A股短线观察系统</title>
+<style>
+:root{--red:#e03131;--green:#2f9e44;--ink:#1f2733;--sub:#667085;--line:#e8edf4;--bg:#f6f8fb;--card:#fff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px}
+.hero{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px}
+.hero h1{font-size:24px;font-weight:700;letter-spacing:.3px}
+.hero p{color:var(--sub);font-size:13px;margin-top:4px}
+.badge{font-size:12px;padding:4px 12px;border-radius:999px;background:#eef4ff;color:#1d4ed8;font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+.metric{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.metric .k{font-size:12px;color:var(--sub)}
+.metric .v{font-size:26px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+.metric .s{font-size:11px;color:var(--sub);margin-top:2px}
+.up{color:var(--red)} .down{color:var(--green)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px}
+.panel h2{font-size:16px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel h2::before{content:"";width:4px;height:16px;border-radius:2px;background:#2563eb}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.rule{background:#fafbfd;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.rule b{display:block;font-size:12px;color:var(--sub);margin-bottom:4px}
+.rule span{font-size:14px;font-weight:600}
+.chart-box{position:relative;height:280px}
+canvas{width:100%;height:100%;display:block}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--sub);margin-top:8px}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.table-wrap{overflow-x:auto;max-height:440px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right}
+th{position:sticky;top:0;background:#f4f6fa;color:var(--sub);font-weight:600;z-index:1}
+td:first-child,th:first-child{text-align:left}
+.t-red{color:var(--red);font-weight:700}
+.t-green{color:var(--green);font-weight:700}
+.tag{font-size:11px;padding:2px 8px;border-radius:6px;background:#f1f3f5;color:#495057}
+.tag.red{background:#fff0f0;color:#c92a2a}.tag.yellow{background:#fff9e6;color:#b08900}.tag.green{background:#ebfbee;color:#2b8a3e}.tag.observe{background:#e7f5ff;color:#1971c2}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.row-rec{background:#fffbe6!important}
+.row-rec td{box-shadow:inset 3px 0 0 #f59f00}
+.row-selected{outline:2px solid #2563eb;outline-offset:-2px}
+.rec-badge{display:inline-block;font-size:11px;font-weight:600;color:#fff;background:#f59f00;border-radius:6px;padding:1px 7px;margin-left:6px;vertical-align:1px}
+.scard{border:1px solid var(--line);border-radius:14px;padding:16px 18px;background:#fff}
+.scard .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.scard .name{font-size:16px;font-weight:700}
+.scard .code{font-size:12px;color:var(--sub)}
+.scard .pos{font-size:11px;color:#1d4ed8;background:#eef4ff;border-radius:6px;padding:3px 8px}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin:10px 0;font-size:13px}
+.kv div{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding-bottom:5px}
+.kv b{font-weight:600}
+.note{font-size:12px;color:var(--sub);background:#fafbfd;border-radius:8px;padding:8px 10px}
+.foot{margin-top:26px;font-size:12px;color:var(--sub);border-top:1px solid var(--line);padding-top:14px;line-height:1.8}
+.empty{color:var(--sub);text-align:center;padding:30px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <h1>策略回测 · 短线观察系统</h1>
+      <p>推荐方案 G：大盘弱势禁买 · 7% 止损 · 8% 止盈 · 最长 5 个交易日 · 数据截至 2026-09-05</p>
+    </div>
+    <span class="badge">模拟盘原型 · 仅供研究</span>
+  </div>
+
+  <div class="cards" id="metrics"></div>
+
+  <div class="panel">
+    <h2>策略净值 vs 上证指数</h2>
+    <div class="chart-box"><canvas id="chart"></canvas></div>
+    <div class="legend"><span><i style="background:#2563eb"></i>策略净值</span><span><i style="background:#adb5bd"></i>上证指数</span><span id="chartHint"></span></div>
+  </div>
+
+  <div class="panel">
+    <h2>参数对比：哪套规矩更稳？</h2>
+    <p style="font-size:13px;color:var(--sub);margin:-6px 0 14px">同一批历史信号，换不同止损/止盈/持有天数/是否弱市禁买，结果并排对比。回撤越浅、收益越稳，说明这套规矩越抗揍。</p>
+    <label style="font-size:13px;color:var(--sub);display:block;margin-bottom:12px">选择方案查看推荐口径：
+      <select id="planSelect" style="margin-left:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px"></select>
+      <span id="planDesc" style="margin-left:8px"></span>
+    </label>
+    <div class="table-wrap"><table id="cmpTable"></table></div>
+    <div class="chart-box" style="height:320px"><canvas id="cmpChart"></canvas></div>
+    <div class="legend" id="cmpLegend"></div>
+  </div>
+
+  <div class="panel">
+    <h2>交易规则（可执行策略卡）</h2>
+    <div class="rules">
+      <div class="rule"><b>触发</b><span>次日回踩支撑位不破</span></div>
+      <div class="rule"><b>执行</b><span>次次日开盘买入，高开超5%放弃</span></div>
+      <div class="rule"><b>止损</b><span>买入价 -7%</span></div>
+      <div class="rule"><b>止盈</b><span>买入价 +8%（推荐）</span></div>
+      <div class="rule"><b>期限</b><span>最长持有 5 个交易日</span></div>
+      <div class="rule"><b>仓位</b><span>大盘弱势禁止买入（推荐）</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>最新交易明细（按入场日倒序）</h2>
+    <div class="table-wrap"><table id="trades"></table></div>
+  </div>
+
+  <div class="panel">
+    <h2>亏损案例复盘（最近 20 笔亏损，找共性）</h2>
+    <div class="table-wrap"><table id="failTable"></table></div>
+  </div>
+
+  <div class="panel">
+    <h2>最新候选策略卡（2026-09-04）</h2>
+    <div class="card-grid" id="cards"></div>
+  </div>
+
+  <div class="foot">
+    说明：本回测基于历史缓存逐日重算，未计交易佣金与滑点；样本期为可验证区间，最新交易日尚未完成的交易已自动排除。<br>
+    局限：回测股票池来自当前缓存中的幸存股票，胜率存在高估可能；“跌破支撑=观察成功”等口径偏乐观；模拟盘不构成投资建议，据此操作风险自负。
+  </div>
+</div>
+
+<script>
+const DATA = {"summary": {"n_trades": 34, "n_win": 17, "n_loss": 17, "win_rate": 50.0, "avg_win": 6.89, "avg_loss": -5.0, "profit_factor": 1.38, "cum_return": 28.49, "max_drawdown": -40.73, "no_trigger": 629, "skip": 0, "bench_return": 0.99, "excess_return": 27.5, "equity": [1.0, 1.08, 1.0562, 1.1407, 1.232, 1.246, 1.2166, 1.314, 1.4191, 1.3197, 1.2274, 1.1871, 1.2821, 1.1923, 1.1089, 1.0312, 0.9591, 1.0357, 1.1186, 1.0651, 1.0363, 0.9638, 1.0409, 0.968, 0.9578, 0.9161, 0.9044, 0.8411, 0.9083, 0.9808, 1.0593, 1.0848, 1.1716, 1.2653, 1.2849], "bench": [1.0, 1.0378, 1.056, 1.0712, 1.0784, 1.0828, 1.0871, 1.0915, 1.0806, 1.0787, 1.0768, 1.0922, 1.0957, 1.1057, 1.1235, 1.1236, 1.1395, 1.1327, 1.1509, 1.1219, 1.0935, 1.0693, 1.0713, 1.0713, 1.0443, 1.0179, 1.0226, 1.0226, 1.0198, 1.0286, 1.0286, 1.0157, 1.0157, 1.0128, 1.0099]}, "trades": [{"status": "trade", "code": "002265", "name": "建设工业", "group": "yellow", "env_weak": false, "signal_date": "2026-07-31", "checked_on": "2026-08-03", "support": 18.88, "entry_date": "2026-08-04", "entry": 19.12, "stop": 17.782, "target": 20.65, "exit_date": "2026-08-10", "exit": 20.65, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "002555", "name": "三七互娱", "group": "red", "env_weak": false, "signal_date": "2026-08-03", "checked_on": "2026-08-04", "support": 19.78, "entry_date": "2026-08-05", "entry": 20.01, "stop": 18.609, "target": 21.611, "exit_date": "2026-08-12", "exit": 19.57, "pnl_pct": -2.2, "reason": "到期卖出"}, {"status": "trade", "code": "300214", "name": "日科化学", "group": "red", "env_weak": false, "signal_date": "2026-08-03", "checked_on": "2026-08-04", "support": 12.92, "entry_date": "2026-08-05", "entry": 13.06, "stop": 12.146, "target": 14.105, "exit_date": "2026-08-11", "exit": 14.105, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "000973", "name": "佛塑科技", "group": "yellow", "env_weak": false, "signal_date": "2026-08-05", "checked_on": "2026-08-06", "support": 12.21, "entry_date": "2026-08-07", "entry": 12.41, "stop": 11.541, "target": 13.403, "exit_date": "2026-08-10", "exit": 13.403, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "002041", "name": "登海种业", "group": "yellow", "env_weak": false, "signal_date": "2026-08-06", "checked_on": "2026-08-07", "support": 8.87, "entry_date": "2026-08-10", "entry": 8.81, "stop": 8.193, "target": 9.515, "exit_date": "2026-08-17", "exit": 8.91, "pnl_pct": 1.14, "reason": "到期卖出"}, {"status": "trade", "code": "300130", "name": "新国都", "group": "yellow", "env_weak": false, "signal_date": "2026-08-06", "checked_on": "2026-08-07", "support": 19.38, "entry_date": "2026-08-10", "entry": 19.5, "stop": 18.135, "target": 21.06, "exit_date": "2026-08-17", "exit": 19.04, "pnl_pct": -2.36, "reason": "到期卖出"}, {"status": "trade", "code": "600313", "name": "农发种业", "group": "yellow", "env_weak": false, "signal_date": "2026-08-06", "checked_on": "2026-08-07", "support": 5.74, "entry_date": "2026-08-10", "entry": 5.69, "stop": 5.292, "target": 6.145, "exit_date": "2026-08-17", "exit": 6.145, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "603980", "name": "吉华集团", "group": "red", "env_weak": false, "signal_date": "2026-08-06", "checked_on": "2026-08-07", "support": 6.7, "entry_date": "2026-08-10", "entry": 6.85, "stop": 6.37, "target": 7.398, "exit_date": "2026-08-13", "exit": 7.398, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "002517", "name": "恺英网络", "group": "red", "env_weak": false, "signal_date": "2026-08-07", "checked_on": "2026-08-10", "support": 18.16, "entry_date": "2026-08-11", "entry": 18.31, "stop": 17.028, "target": 19.775, "exit_date": "2026-08-14", "exit": 17.028, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "002558", "name": "巨人网络", "group": "red", "env_weak": false, "signal_date": "2026-08-07", "checked_on": "2026-08-10", "support": 29.54, "entry_date": "2026-08-11", "entry": 29.5, "stop": 27.435, "target": 31.86, "exit_date": "2026-08-14", "exit": 27.435, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "002757", "name": "南兴股份", "group": "yellow", "env_weak": false, "signal_date": "2026-08-07", "checked_on": "2026-08-10", "support": 17.31, "entry_date": "2026-08-11", "entry": 18.0, "stop": 16.74, "target": 19.44, "exit_date": "2026-08-18", "exit": 17.41, "pnl_pct": -3.28, "reason": "到期卖出"}, {"status": "trade", "code": "688205", "name": "德科立", "group": "yellow", "env_weak": false, "signal_date": "2026-08-07", "checked_on": "2026-08-10", "support": 133.11, "entry_date": "2026-08-11", "entry": 133.28, "stop": 123.95, "target": 143.942, "exit_date": "2026-08-12", "exit": 143.942, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "300368", "name": "汇金股份", "group": "red", "env_weak": false, "signal_date": "2026-08-10", "checked_on": "2026-08-11", "support": 9.41, "entry_date": "2026-08-12", "entry": 9.5, "stop": 8.835, "target": 10.26, "exit_date": "2026-08-17", "exit": 8.835, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "300251", "name": "光线传媒", "group": "red", "env_weak": false, "signal_date": "2026-08-11", "checked_on": "2026-08-12", "support": 12.01, "entry_date": "2026-08-13", "entry": 12.03, "stop": 11.188, "target": 12.992, "exit_date": "2026-08-18", "exit": 11.188, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "300368", "name": "汇金股份", "group": "red", "env_weak": false, "signal_date": "2026-08-11", "checked_on": "2026-08-12", "support": 9.46, "entry_date": "2026-08-13", "entry": 9.8, "stop": 9.114, "target": 10.584, "exit_date": "2026-08-14", "exit": 9.114, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "600986", "name": "浙文互联", "group": "red", "env_weak": false, "signal_date": "2026-08-11", "checked_on": "2026-08-12", "support": 8.09, "entry_date": "2026-08-13", "entry": 8.22, "stop": 7.645, "target": 8.878, "exit_date": "2026-08-17", "exit": 7.645, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "000560", "name": "我爱我家", "group": "yellow", "env_weak": false, "signal_date": "2026-08-12", "checked_on": "2026-08-13", "support": 2.24, "entry_date": "2026-08-14", "entry": 2.24, "stop": 2.083, "target": 2.419, "exit_date": "2026-08-20", "exit": 2.419, "pnl_pct": 7.99, "reason": "止盈"}, {"status": "trade", "code": "002124", "name": "天邦食品", "group": "yellow", "env_weak": false, "signal_date": "2026-08-12", "checked_on": "2026-08-13", "support": 2.27, "entry_date": "2026-08-14", "entry": 2.31, "stop": 2.148, "target": 2.495, "exit_date": "2026-08-18", "exit": 2.495, "pnl_pct": 8.01, "reason": "止盈"}, {"status": "trade", "code": "300274", "name": "阳光电源", "group": "yellow", "env_weak": false, "signal_date": "2026-08-13", "checked_on": "2026-08-14", "support": 116.72, "entry_date": "2026-08-17", "entry": 117.11, "stop": 108.912, "target": 126.479, "exit_date": "2026-08-24", "exit": 111.5, "pnl_pct": -4.79, "reason": "到期卖出"}, {"status": "trade", "code": "601162", "name": "天风证券", "group": "yellow", "env_weak": false, "signal_date": "2026-08-13", "checked_on": "2026-08-14", "support": 3.73, "entry_date": "2026-08-17", "entry": 3.71, "stop": 3.45, "target": 4.007, "exit_date": "2026-08-24", "exit": 3.61, "pnl_pct": -2.7, "reason": "到期卖出"}, {"status": "trade", "code": "603341", "name": "龙旗科技", "group": "yellow", "env_weak": false, "signal_date": "2026-08-13", "checked_on": "2026-08-14", "support": 39.62, "entry_date": "2026-08-17", "entry": 38.99, "stop": 36.261, "target": 42.109, "exit_date": "2026-08-19", "exit": 36.261, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "688676", "name": "金盘科技", "group": "yellow", "env_weak": false, "signal_date": "2026-08-13", "checked_on": "2026-08-14", "support": 69.84, "entry_date": "2026-08-17", "entry": 70.12, "stop": 65.212, "target": 75.73, "exit_date": "2026-08-18", "exit": 75.73, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "002580", "name": "圣阳股份", "group": "yellow", "env_weak": false, "signal_date": "2026-08-14", "checked_on": "2026-08-17", "support": 21.51, "entry_date": "2026-08-18", "entry": 21.76, "stop": 20.237, "target": 23.501, "exit_date": "2026-08-18", "exit": 20.237, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "002632", "name": "道明光学", "group": "red", "env_weak": false, "signal_date": "2026-08-14", "checked_on": "2026-08-17", "support": 8.41, "entry_date": "2026-08-18", "entry": 8.58, "stop": 7.979, "target": 9.266, "exit_date": "2026-08-25", "exit": 8.49, "pnl_pct": -1.05, "reason": "到期卖出"}, {"status": "trade", "code": "600909", "name": "华安证券", "group": "red", "env_weak": false, "signal_date": "2026-08-14", "checked_on": "2026-08-17", "support": 8.26, "entry_date": "2026-08-18", "entry": 8.49, "stop": 7.896, "target": 9.169, "exit_date": "2026-08-25", "exit": 8.12, "pnl_pct": -4.36, "reason": "到期卖出"}, {"status": "trade", "code": "300008", "name": "天海防务", "group": "yellow", "env_weak": false, "signal_date": "2026-08-17", "checked_on": "2026-08-18", "support": 6.25, "entry_date": "2026-08-19", "entry": 6.26, "stop": 5.822, "target": 6.761, "exit_date": "2026-08-26", "exit": 6.18, "pnl_pct": -1.28, "reason": "到期卖出"}, {"status": "trade", "code": "600391", "name": "航发科技", "group": "yellow", "env_weak": false, "signal_date": "2026-08-17", "checked_on": "2026-08-18", "support": 31.26, "entry_date": "2026-08-19", "entry": 32.04, "stop": 29.797, "target": 34.603, "exit_date": "2026-08-19", "exit": 29.797, "pnl_pct": -7.0, "reason": "止损"}, {"status": "trade", "code": "002882", "name": "金龙羽", "group": "yellow", "env_weak": false, "signal_date": "2026-08-26", "checked_on": "2026-08-27", "support": 22.2, "entry_date": "2026-08-28", "entry": 22.05, "stop": 20.506, "target": 23.814, "exit_date": "2026-09-02", "exit": 23.814, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "600657", "name": "信达地产", "group": "yellow", "env_weak": false, "signal_date": "2026-08-26", "checked_on": "2026-08-27", "support": 2.63, "entry_date": "2026-08-28", "entry": 2.63, "stop": 2.446, "target": 2.84, "exit_date": "2026-08-31", "exit": 2.84, "pnl_pct": 7.98, "reason": "止盈"}, {"status": "trade", "code": "600714", "name": "金瑞矿业", "group": "red", "env_weak": false, "signal_date": "2026-08-26", "checked_on": "2026-08-27", "support": 16.82, "entry_date": "2026-08-28", "entry": 17.26, "stop": 16.052, "target": 18.641, "exit_date": "2026-08-28", "exit": 18.641, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "000420", "name": "吉林化纤", "group": "yellow", "env_weak": false, "signal_date": "2026-08-28", "checked_on": "2026-08-31", "support": 3.71, "entry_date": "2026-09-01", "entry": 3.73, "stop": 3.469, "target": 4.028, "exit_date": "2026-09-04", "exit": 3.82, "pnl_pct": 2.41, "reason": "到期卖出"}, {"status": "trade", "code": "000998", "name": "隆平高科", "group": "yellow", "env_weak": false, "signal_date": "2026-08-28", "checked_on": "2026-08-31", "support": 9.03, "entry_date": "2026-09-01", "entry": 9.05, "stop": 8.417, "target": 9.774, "exit_date": "2026-09-01", "exit": 9.774, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "002580", "name": "圣阳股份", "group": "red", "env_weak": false, "signal_date": "2026-08-31", "checked_on": "2026-09-01", "support": 21.43, "entry_date": "2026-09-02", "entry": 21.19, "stop": 19.707, "target": 22.885, "exit_date": "2026-09-04", "exit": 22.885, "pnl_pct": 8.0, "reason": "止盈"}, {"status": "trade", "code": "002654", "name": "万润科技", "group": "yellow", "env_weak": false, "signal_date": "2026-08-31", "checked_on": "2026-09-01", "support": 13.78, "entry_date": "2026-09-02", "entry": 13.58, "stop": 12.629, "target": 14.666, "exit_date": "2026-09-04", "exit": 13.79, "pnl_pct": 1.55, "reason": "到期卖出"}], "equity": [1.0, 1.08, 1.0562, 1.1407, 1.232, 1.246, 1.2166, 1.314, 1.4191, 1.3197, 1.2274, 1.1871, 1.2821, 1.1923, 1.1089, 1.0312, 0.9591, 1.0357, 1.1186, 1.0651, 1.0363, 0.9638, 1.0409, 0.968, 0.9578, 0.9161, 0.9044, 0.8411, 0.9083, 0.9808, 1.0593, 1.0848, 1.1716, 1.2653, 1.2849], "bench": [1.0, 1.0378, 1.056, 1.0712, 1.0784, 1.0828, 1.0871, 1.0915, 1.0806, 1.0787, 1.0768, 1.0922, 1.0957, 1.1057, 1.1235, 1.1236, 1.1395, 1.1327, 1.1509, 1.1219, 1.0935, 1.0693, 1.0713, 1.0713, 1.0443, 1.0179, 1.0226, 1.0226, 1.0198, 1.0286, 1.0286, 1.0157, 1.0157, 1.0128, 1.0099], "cards": [{"code": "002212", "name": "天融信", "category": "优先观察", "structure": "二买/三买候选", "close": 6.65, "pct_chg": 2.15, "support": 6.63, "trigger": "回踩 6.63 附近不破并转强", "stop": 6.31, "target": 7.18, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "站上5/10/20日线、MACD在0轴上方、KDJ拐头。次日不追高，等回踩6.63/6.49附近不破并转强，可短线关注。", "risks": [], "vetoed": []}, {"code": "002258", "name": "利尔化学", "category": "优先观察", "structure": "二买/三买候选", "close": 14.86, "pct_chg": 3.48, "support": 14.65, "trigger": "回踩 14.65 附近不破并转强", "stop": 13.93, "target": 16.05, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "站上5/10/20日线、MACD在0轴上方、KDJ金叉。次日不追高，等回踩14.65/14.43附近不破并转强，可短线关注。", "risks": [], "vetoed": []}, {"code": "002517", "name": "恺英网络", "category": "优先观察", "structure": "二买/三买候选", "close": 17.41, "pct_chg": 2.11, "support": 17.07, "trigger": "回踩 17.07 附近不破并转强", "stop": 16.23, "target": 18.8, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "站上5/10/20日线、MACD在0轴上方、KDJ拐头。次日不追高，等回踩17.07/16.82附近不破并转强，可短线关注。", "risks": [], "vetoed": []}, {"code": "002632", "name": "道明光学", "category": "优先观察", "structure": "二买/三买候选", "close": 9.53, "pct_chg": 3.36, "support": 9.22, "trigger": "回踩 9.22 附近不破并转强", "stop": 8.77, "target": 10.29, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "站上5/10/20日线、MACD在0轴上方、KDJ拐头。次日不追高，等回踩9.22/8.84附近不破并转强，可短线关注。", "risks": [], "vetoed": []}, {"code": "688170", "name": "德龙激光", "category": "强势但不宜追高", "structure": "二买/三买候选", "close": 61.9, "pct_chg": 17.5, "support": 54.86, "trigger": "回踩 54.86 附近不破并转强", "stop": 52.17, "target": 66.85, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "风险点：。处理方式：只等回踩54.86/53.90附近不破再看，不追高。", "risks": [], "vetoed": []}, {"code": "300300", "name": "海峡创新", "category": "强势但不宜追高", "structure": "二买/三买候选", "close": 9.13, "pct_chg": 16.01, "support": 8.09, "trigger": "回踩 8.09 附近不破并转强", "stop": 7.69, "target": 9.86, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "风险点：KDJ J值103偏高。处理方式：只等回踩8.09/7.81附近不破再看，不追高。", "risks": [], "vetoed": []}, {"code": "300468", "name": "四方精创", "category": "强势但不宜追高", "structure": "二买/三买候选", "close": 27.5, "pct_chg": 14.58, "support": 25.62, "trigger": "回踩 25.62 附近不破并转强", "stop": 24.36, "target": 29.7, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "风险点：。处理方式：只等回踩24.69/24.11附近不破再看，不追高。", "risks": [], "vetoed": []}, {"code": "000560", "name": "我爱我家", "category": "强势但不宜追高", "structure": "二买/三买候选", "close": 3.15, "pct_chg": 10.14, "support": 3.06, "trigger": "回踩 3.06 附近不破并转强", "stop": 2.91, "target": 3.4, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "风险点：接近涨停，次日容易分歧；10日涨幅41.3%透支。处理方式：只等回踩3.06/2.73附近不破再看，不追高。", "risks": [], "vetoed": []}, {"code": "600059", "name": "古越龙山", "category": "强势但不宜追高", "structure": "二买/三买候选", "close": 9.19, "pct_chg": 10.06, "support": 8.55, "trigger": "回踩 8.55 附近不破并转强", "stop": 8.13, "target": 9.93, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "风险点：接近涨停，次日容易分歧；KDJ J值97偏高。处理方式：只等回踩8.49/8.38附近不破再看，不追高。", "risks": [], "vetoed": []}, {"code": "600354", "name": "敦煌种业", "category": "强势但不宜追高", "structure": "二买/三买候选", "close": 8.66, "pct_chg": 10.04, "support": 8.43, "trigger": "回踩 8.43 附近不破并转强", "stop": 8.02, "target": 9.35, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "风险点：接近涨停，次日容易分歧。处理方式：只等回踩8.43/7.86附近不破再看，不追高。", "risks": [], "vetoed": []}, {"code": "600698", "name": "湖南天雁", "category": "强势但不宜追高", "structure": "二买/三买候选", "close": 7.91, "pct_chg": 10.01, "support": 7.51, "trigger": "回踩 7.51 附近不破并转强", "stop": 7.14, "target": 8.54, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "风险点：接近涨停，次日容易分歧。处理方式：只等回踩7.51/7.32附近不破再看，不追高。", "risks": [], "vetoed": []}, {"code": "000876", "name": "新 希 望", "category": "强势但不宜追高", "structure": "二买/三买候选", "close": 7.7, "pct_chg": 10.0, "support": 7.21, "trigger": "回踩 7.21 附近不破并转强", "stop": 6.86, "target": 8.32, "hold_days": 5, "position": "单票 ≤10%，不集中", "note": "风险点：接近涨停，次日容易分歧。处理方式：只等回踩7.21/7.12附近不破再看，不追高。", "risks": [], "vetoed": []}], "comparison": [{"name": "A 现行规则", "desc": "止损7% · 止盈10% · 持有5天 · 弱市照买", "n_trades": 114, "win_rate": 55.3, "cum_return": 225.43, "max_drawdown": -64.25, "profit_factor": 1.51, "excess_return": 228.18, "curve": [0.8176, 0.8176, 0.8792, 0.9351, 0.877, 0.9141, 0.7586, 0.733, 0.8573, 0.4984, 0.7691, 0.4594, 0.7021, 0.3997, 0.5861, 0.3907, 0.3907, 0.4397, 1.0762, 0.7629, 0.6364, 0.9231, 0.8392, 0.9783, 1.1252, 1.1627, 1.1622, 1.1773, 1.1773, 0.947, 0.8807, 0.839, 0.729, 0.9687, 0.7361, 0.8097, 0.7916, 0.8662, 1.3305, 1.7709, 1.6099, 1.9949, 1.4635, 3.2543], "recommended": false}, {"name": "B 弱市禁买", "desc": "止损7% · 止盈10% · 持有5天 · 大盘弱势不交易", "n_trades": 34, "win_rate": 44.1, "cum_return": 8.52, "max_drawdown": -43.02, "profit_factor": 1.17, "excess_return": 11.27, "curve": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0334, 1.0329, 1.0463, 1.0463, 0.8416, 0.7827, 0.7457, 0.6479, 0.861, 0.8461, 0.8018, 0.7057, 0.6967, 0.6967, 0.8624, 0.784, 0.9715, 0.7127, 1.0852], "recommended": false}, {"name": "C 更严止损", "desc": "止损5% · 止盈10% · 持有5天 · 弱市照买", "n_trades": 114, "win_rate": 49.1, "cum_return": 160.96, "max_drawdown": -58.0, "profit_factor": 1.45, "excess_return": 163.71, "curve": [0.8715, 0.9174, 0.9455, 1.0401, 0.9809, 1.0165, 0.8114, 0.8926, 0.748, 0.6751, 0.8975, 0.6492, 0.8549, 0.6152, 0.7791, 0.5844, 0.8357, 0.6196, 1.3179, 0.9343, 0.8796, 1.1305, 1.0277, 1.3223, 1.3779, 1.4545, 1.4232, 1.5367, 1.5204, 1.2517, 1.1891, 0.9261, 0.7839, 0.9748, 0.7024, 0.7394, 0.7522, 0.7287, 1.0669, 1.42, 1.291, 1.5997, 1.1736, 2.6096], "recommended": false}, {"name": "D 更快止盈", "desc": "止损7% · 止盈8% · 持有5天 · 弱市照买", "n_trades": 114, "win_rate": 58.8, "cum_return": 313.44, "max_drawdown": -57.97, "profit_factor": 1.64, "excess_return": 316.19, "curve": [0.9495, 0.9495, 0.9453, 1.0468, 1.1194, 1.0422, 0.9762, 0.9039, 1.1145, 0.6638, 1.0432, 0.6007, 0.935, 0.5132, 0.7273, 0.5109, 0.5109, 0.7855, 1.2287, 0.9205, 1.0735, 0.7893, 1.338, 1.1376, 1.2389, 1.6484, 1.5263, 1.7154, 1.8987, 1.3798, 1.2832, 1.2952, 1.1253, 1.3857, 1.1157, 1.2049, 1.1998, 1.2655, 1.8064, 2.2751, 2.1066, 2.5163, 1.9509, 4.1344], "recommended": false}, {"name": "E 短持有", "desc": "止损7% · 止盈10% · 持有3天 · 弱市照买", "n_trades": 114, "win_rate": 51.8, "cum_return": 91.83, "max_drawdown": -59.04, "profit_factor": 1.32, "excess_return": 94.58, "curve": [0.8198, 0.8198, 0.8815, 0.8885, 0.8532, 0.8685, 0.7828, 0.8426, 0.8579, 0.5816, 0.8426, 0.5486, 0.5766, 0.4592, 0.5569, 0.4464, 0.4882, 0.594, 0.9079, 0.6933, 0.7937, 0.8253, 1.0004, 1.0004, 0.9931, 1.0453, 1.0453, 1.0097, 1.0607, 0.8122, 0.7553, 0.6175, 0.5239, 0.664, 0.5222, 0.5744, 0.5616, 0.5624, 0.7843, 1.0439, 0.949, 1.1759, 0.8627, 1.9183], "recommended": false}, {"name": "F 保守组合", "desc": "止损5% · 止盈8% · 持有3天 · 弱市禁买", "n_trades": 34, "win_rate": 41.2, "cum_return": -1.23, "max_drawdown": -39.4, "profit_factor": 1.05, "excess_return": 1.52, "curve": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.9369, 0.9927, 1.0119, 1.0119, 1.0405, 1.0135, 0.8475, 0.8051, 0.7814, 0.6465, 0.8016, 0.8016, 0.6805, 0.6805, 0.6805, 0.6805, 0.8142, 0.7539, 0.9006, 0.6982, 0.9877], "recommended": false}, {"name": "G 弱市禁买+止盈8%", "desc": "止损7% · 止盈8% · 持有5天 · 大盘弱势不交易", "n_trades": 34, "win_rate": 50.0, "cum_return": 28.49, "max_drawdown": -40.73, "profit_factor": 1.38, "excess_return": 31.24, "curve": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.232, 1.1407, 1.2821, 1.4191, 1.0312, 0.9591, 0.968, 0.8411, 1.0357, 1.0357, 1.0363, 0.9161, 0.9044, 0.9044, 1.0593, 0.9808, 1.1716, 0.9083, 1.2849], "recommended": false}, {"name": "H 弱市禁买+止盈12%", "desc": "止损7% · 止盈12% · 持有5天 · 大盘弱势不交易", "n_trades": 34, "win_rate": 41.2, "cum_return": -0.77, "max_drawdown": -48.71, "profit_factor": 1.07, "excess_return": 1.98, "curve": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0329, 1.0847, 1.0847, 0.8725, 0.8114, 0.6835, 0.5938, 0.5938, 0.7938, 0.7349, 0.6468, 0.6385, 0.6385, 0.6385, 0.821, 0.821, 0.821, 0.9923], "recommended": false}, {"name": "I G+仅无风险候选", "desc": "G规则 + 有风险提示的候选不参与交易", "n_trades": 34, "win_rate": 50.0, "cum_return": 28.49, "max_drawdown": -40.73, "profit_factor": 1.38, "excess_return": 31.24, "curve": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.232, 1.1407, 1.2821, 1.4191, 1.0312, 0.9591, 0.968, 0.8411, 1.0357, 1.0357, 1.0363, 0.9161, 0.9044, 0.9044, 1.0593, 0.9808, 1.1716, 0.9083, 1.2849], "recommended": true}], "cmp_dates": ["2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10", "2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17", "2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-04"], "cmp_bench": [1.0, 0.9874, 0.9826, 0.9988, 0.9888, 0.9685, 0.9817, 0.9788, 0.9607, 0.9314, 0.9394, 0.9562, 0.9569, 0.9593, 0.9438, 0.9547, 0.9436, 0.9474, 0.9415, 0.9483, 0.9427, 0.9458, 0.9597, 0.9651, 0.975, 0.9815, 0.9735, 0.9766, 0.9717, 0.9718, 0.9855, 0.9874, 0.9637, 0.966, 0.9663, 0.9606, 0.9624, 0.9681, 0.979, 0.978, 0.9864, 0.9848, 0.9753, 0.9725]};
+
+function fmt(v, d=2){ return (v===null||v===undefined) ? "—" : Number(v).toFixed(d); }
+function cls(v){ return v>0 ? "t-red" : v<0 ? "t-green" : ""; }
+function tag(g){ return `<span class="tag ${g}">${{red:"成功上涨",yellow:"成功下跌",green:"失败下跌",observe:"仅观察"}[g]||g}</span>`; }
+
+const m = DATA.summary;
+document.getElementById("metrics").innerHTML = [
+  ["入场次数", m.n_trades, `${m.no_trigger} 次信号未触发`],
+  ["胜率", fmt(m.win_rate,1)+"%", `${m.n_win} 盈 / ${m.n_loss} 亏`],
+  ["盈亏比", fmt(m.profit_factor), `平均盈 ${fmt(m.avg_win)}% / 亏 ${fmt(m.avg_loss)}%`],
+  ["累计收益", fmt(m.cum_return)+"%", m.cum_return>=0?"跑赢基准":"落后基准"],
+  ["最大回撤", fmt(m.max_drawdown)+"%", "按复利净值计算"],
+  ["vs 上证指数", fmt(m.excess_return)+"%", `基准 ${fmt(m.bench_return)}%`],
+].map(([k,v,s]) => `<div class="metric"><div class="k">${k}</div><div class="v ${k==="最大回撤"?"down":(k==="累计收益"||k==="vs 上证指数")?(m.cum_return>=0||m.excess_return>=0?"up":"down"):""}">${v}</div><div class="s">${s}</div></div>`).join("");
+
+const cv = document.getElementById("chart");
+const dpr = window.devicePixelRatio||1;
+const w = cv.clientWidth||900, h = cv.clientHeight||280;
+cv.width = w*dpr; cv.height = h*dpr;
+const ctx = cv.getContext("2d");
+ctx.setTransform(dpr,0,0,dpr,0,0);
+const eq = DATA.equity, be = DATA.bench;
+const all = eq.concat(be||[]);
+let lo = Math.min(...all), hi = Math.max(...all);
+const pad = (hi-lo)*0.08 || 0.1; lo-=pad; hi+=pad;
+const padL=44, padR=12, padT=14, padB=22;
+const nx = eq.length-1;
+const px = i => padL + (nx? (i*(w-padL-padR)/nx):0);
+const py = v => padT + (hi-v)/(hi-lo)*(h-padT-padB);
+ctx.clearRect(0,0,w,h);
+for(let g=0;g<=4;g++){ const y=padT+(h-padT-padB)*g/4; ctx.strokeStyle="#eef1f5"; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-padR,y); ctx.stroke();
+  ctx.fillStyle="#9aa4b2"; ctx.font="11px sans-serif"; ctx.textAlign="right"; ctx.fillText(fmt(hi-(hi-lo)*g/4,0)+"%", padL-6, y+4); }
+function line(series,color){ ctx.strokeStyle=color; ctx.lineWidth=2; ctx.beginPath(); series.forEach((v,i)=>{ const x=px(i), y=py(v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); }
+if(be) line(be,"#adb5bd");
+line(eq,"#2563eb");
+const lx=eq.length-1; ctx.fillStyle="#2563eb"; ctx.fillText("策略 "+fmt((eq[lx]-1)*100,1)+"%", px(lx)-80, py(eq[lx])-8);
+if(be) { ctx.fillStyle="#868e96"; ctx.fillText("上证 "+fmt((be[lx]-1)*100,1)+"%", px(lx)-80, py(be[lx])+12); }
+
+/* ---------- 参数对比 ---------- */
+const CMP = DATA.comparison;
+const COLORS = ["#2563eb","#e03131","#2f9e44","#f59f00","#9c36b5","#0ca678","#f76707","#12b886"];
+const cmpTb = document.getElementById("cmpTable");
+cmpTb.innerHTML = `<thead><tr><th>方案</th><th>规则说明</th><th class="num">交易次数</th><th class="num">胜率</th><th class="num">累计收益</th><th class="num">最大回撤</th><th class="num">盈亏比</th><th class="num">超额收益</th></tr></thead><tbody>` +
+CMP.map((c,i)=>`<tr class="${c.recommended?"row-rec":""}">
+  <td><b>${c.name}</b>${c.recommended?' <span class="rec-badge">推荐</span>':""}</td><td class="desc" style="text-align:left;color:var(--sub);font-size:12px">${c.desc}</td>
+  <td class="num">${c.n_trades}</td>
+  <td class="num">${fmt(c.win_rate,1)}%</td>
+  <td class="num ${c.cum_return>=0?"t-red":"t-green"}">${c.cum_return>=0?"+":""}${fmt(c.cum_return)}%</td>
+  <td class="num t-green">${fmt(c.max_drawdown)}%</td>
+  <td class="num">${fmt(c.profit_factor)}</td>
+  <td class="num ${c.excess_return>=0?"t-red":"t-green"}">${c.excess_return>=0?"+":""}${fmt(c.excess_return)}%</td>
+</tr>`).join("") + `</tbody>`;
+
+const sel = document.getElementById("planSelect");
+const selDesc = document.getElementById("planDesc");
+CMP.forEach((c,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=c.name+(c.recommended?"（推荐）":""); sel.appendChild(o); });
+sel.value = String(CMP.findIndex(c=>c.recommended));
+function pickPlan(){
+  const i = Number(sel.value);
+  const c = CMP[i];
+  selDesc.textContent = c ? c.desc : "";
+  cmpTb.querySelectorAll("tbody tr").forEach((tr,j)=>{ tr.classList.toggle("row-selected", j===i); });
+}
+sel.onchange = pickPlan; pickPlan();
+
+const cc = document.getElementById("cmpChart");
+const cdpr = window.devicePixelRatio||1;
+const cw = cc.clientWidth||900, ch = cc.clientHeight||320;
+cc.width = cw*cdpr; cc.height = ch*cdpr;
+const cctx = cc.getContext("2d");
+cctx.setTransform(cdpr,0,0,cdpr,0,0);
+const cmpDates = DATA.cmp_dates;
+const allVals = CMP.flatMap(c=>c.curve).concat(DATA.cmp_bench||[]).filter(v=>v!==null);
+let clo = Math.min(...allVals), chi = Math.max(...allVals);
+const cpad = (chi-clo)*0.08 || 0.1; clo-=cpad; chi+=cpad;
+const cpadL=44, cpadR=12, cpadT=14, cpadB=22;
+const cnx = cmpDates.length-1;
+const cpx = i => cpadL + (cnx? (i*(cw-cpadL-cpadR)/cnx):0);
+const cpy = v => cpadT + (chi-v)/(chi-clo)*(ch-cpadT-cpadB);
+cctx.clearRect(0,0,cw,ch);
+for(let g=0;g<=4;g++){ const y=cpadT+(ch-cpadT-cpadB)*g/4; cctx.strokeStyle="#eef1f5"; cctx.beginPath(); cctx.moveTo(cpadL,y); cctx.lineTo(cw-cpadR,y); cctx.stroke();
+  cctx.fillStyle="#9aa4b2"; cctx.font="11px sans-serif"; cctx.textAlign="right"; cctx.fillText(fmt(chi-(chi-clo)*g/4,0)+"%", cpadL-6, y+4); }
+function cmpLine(series,color,width){ cctx.strokeStyle=color; cctx.lineWidth=width||2; cctx.beginPath(); series.forEach((v,i)=>{ const x=cpx(i), y=cpy(v); if(v===null)return; i?cctx.lineTo(x,y):cctx.moveTo(x,y); }); cctx.stroke(); }
+if(DATA.cmp_bench) cmpLine(DATA.cmp_bench,"#adb5bd",1.5);
+CMP.forEach((c,i)=>cmpLine(c.curve, COLORS[i], 2));
+const clx = cmpDates.length-1;
+document.getElementById("cmpLegend").innerHTML = CMP.map((c,i)=>
+  `<span><i style="background:${COLORS[i]}"></i>${c.name} ${fmt((c.curve[clx]-1)*100,1)}%</span>`).join("") +
+  `<span><i style="background:#adb5bd"></i>上证 ${DATA.cmp_bench?fmt((DATA.cmp_bench[clx]-1)*100,1)+"%":""}</span>`;
+
+const tb = document.getElementById("trades");
+if(DATA.trades.length){
+  tb.innerHTML = `<thead><tr><th>信号日</th><th>代码</th><th>名称</th><th>分组</th><th>入场日</th><th>入场价</th><th>止损</th><th>止盈</th><th>出场日</th><th>出场价</th><th>盈亏</th><th>出场原因</th></tr></thead><tbody>` +
+  DATA.trades.slice().reverse().map(t=>`<tr>
+    <td>${t.signal_date}</td><td>${t.code}</td><td>${t.name}</td><td>${tag(t.group)}</td>
+    <td>${t.entry_date}</td><td>${fmt(t.entry)}</td><td>${fmt(t.stop)}</td><td>${fmt(t.target)}</td>
+    <td>${t.exit_date}</td><td>${fmt(t.exit)}</td>
+    <td class="${cls(t.pnl_pct)}">${t.pnl_pct>=0?"+":""}${fmt(t.pnl_pct)}%</td><td>${t.reason}</td>
+  </tr>`).join("") + `</tbody>`;
+} else { tb.innerHTML = `<tr><td class="empty">暂无已完成交易</td></tr>`; }
+
+const ft = document.getElementById("failTable");
+const fails = DATA.trades.filter(t=>t.pnl_pct<=0).sort((a,b)=>b.exit_date.localeCompare(a.exit_date)).slice(0,20);
+if(fails.length){
+  ft.innerHTML = `<thead><tr><th>信号日</th><th>代码</th><th>名称</th><th class="num">支撑</th><th class="num">入场</th><th class="num">出场</th><th class="num">盈亏</th><th>出场原因</th><th>共性提示</th></tr></thead><tbody>` +
+  fails.map(t=>`<tr>
+    <td>${t.signal_date}</td><td>${t.code}</td><td>${t.name}</td>
+    <td>${fmt(t.support)}</td><td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td>
+    <td class="t-green">${fmt(t.pnl_pct)}%</td><td>${t.reason}</td>
+    <td>${t.env_weak ? "弱市信号需更谨慎 / 弱市禁买可过滤" : "回踩后未延续，按纪律离场"}</td>
+  </tr>`).join("") + `</tbody>`;
+} else { ft.innerHTML = `<tr><td class="empty">暂无亏损交易</td></tr>`; }
+
+const cb = document.getElementById("cards");
+if(DATA.cards.length){
+  cb.innerHTML = DATA.cards.map(c=>`<div class="scard">
+    <div class="top"><div><div class="name">${c.name} <span class="code">${c.code}</span></div>
+      <div class="tag" style="margin-top:5px">${c.category} · ${c.structure}</div></div>
+      <span class="pos">${c.position}</span></div>
+    <div class="kv">
+      <div><span>观察日收盘</span><b>${fmt(c.close)}</b></div>
+      <div><span>支撑位</span><b>${fmt(c.support)}</b></div>
+      <div><span>触发条件</span><b>${c.trigger}</b></div>
+      <div><span>止损线</span><b class="down">${fmt(c.stop)}</b></div>
+      <div><span>目标价</span><b class="up">${fmt(c.target)}</b></div>
+      <div><span>观察期限</span><b>${c.hold_days} 个交易日</b></div>
+    </div>
+    ${c.vetoed && c.vetoed.length ? `<div class="note" style="background:#fff0f0;border:1px solid #ffc9c9;color:#c92a2a;margin-bottom:6px">排雷否决：${c.vetoed.join("；")}</div>` : ""}
+    ${c.risks && c.risks.length ? `<div class="note" style="margin-bottom:6px">风险提示：${c.risks.slice(0,2).join("；")}</div>` : ""}
+    <div class="note">${c.note}</div>
+  </div>`).join("");
+} else { cb.innerHTML = `<div class="empty">暂无候选</div>`; }
+</script>
+</body>
+</html>
