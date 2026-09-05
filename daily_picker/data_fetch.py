@@ -23,6 +23,7 @@ from .config import Config
 EM_CLIST = "https://push2.eastmoney.com/api/qt/clist/get"
 EM_KLINE = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 EM_SECTOR = "https://push2.eastmoney.com/api/qt/clist/get"
+EM_ULIST = "https://push2.eastmoney.com/api/qt/ulist.np/get"
 SINA_KLINE = (
     "https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_data=/"
     "CN_MarketDataService.getKLineData"
@@ -50,6 +51,57 @@ def secid_of(code: str) -> str:
     """东方财富 secid：6/9 开头是沪市(1)，其余为深市(0)。"""
     code = str(code).zfill(6)
     return f"1.{code}" if code[0] in "69" else f"0.{code}"
+
+
+def fetch_quotes_realtime(codes: List[str], cfg: Config) -> Dict[str, Dict]:
+    """批量拉实时行情（东财 ulist），返回 {code: {...}}。
+
+    字段：f2最新价 f3涨跌幅 f15最高 f16最低 f17今开 f18昨收 f6成交额。
+    非交易时段返回最近收盘快照值，可作盯盘参考。
+    """
+    out: Dict[str, Dict] = {}
+    codes = [str(c).zfill(6) for c in codes if str(c).zfill(6)]
+    if not codes:
+        return out
+    # 单次最多约 60 只，超过分批
+    for i in range(0, len(codes), 60):
+        batch = codes[i : i + 60]
+        params = {
+            "fltt": 2,
+            "secids": ",".join(secid_of(c) for c in batch),
+            "fields": "f2,f3,f5,f6,f12,f14,f15,f16,f17,f18",
+        }
+        url = EM_ULIST + "?" + urllib.parse.urlencode(params)
+        try:
+            data = json.loads(_request(url, cfg))
+        except Exception:
+            continue
+        rows = (data.get("data") or {}).get("diff") or []
+        for r in rows:
+            code = str(r.get("f12") or "").zfill(6)
+            if not code:
+                continue
+            out[code] = {
+                "code": code,
+                "name": r.get("f14") or code,
+                "price": _num(r.get("f2")),
+                "pct_chg": _num(r.get("f3")),
+                "high": _num(r.get("f15")),
+                "low": _num(r.get("f16")),
+                "open": _num(r.get("f17")),
+                "prev_close": _num(r.get("f18")),
+                "amount": _num(r.get("f6")),
+            }
+    return out
+
+
+def _num(v) -> Optional[float]:
+    try:
+        if v is None or v == "-":
+            return None
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 def _urllib_text(

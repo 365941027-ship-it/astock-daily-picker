@@ -740,12 +740,24 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(parsed.query)
         if path in ("/", "/index.html"):
             self._send_static("index.html", "text/html; charset=utf-8")
+        elif path == "/intraday":
+            self._send_static("intraday.html", "text/html; charset=utf-8")
         elif path == "/app.js":
             self._send_static("app.js", "text/javascript; charset=utf-8")
         elif path == "/style.css":
             self._send_static("style.css", "text/css; charset=utf-8")
         elif path == "/api/status":
             self._send_json(JOB.to_dict())
+        elif path == "/api/intraday":
+            status_path = os.path.join(CACHE.root, "intraday_status.json")
+            if os.path.exists(status_path):
+                try:
+                    with open(status_path, encoding="utf-8") as f:
+                        self._send_json(json.load(f))
+                except Exception:
+                    self._send_json({"ok": False, "error": "盯盘状态文件解析失败"}, 500)
+            else:
+                self._send_json({"ok": False, "error": "还没有盯盘快照，请先运行 scripts/intraday_monitor.py"}, 404)
         elif path == "/api/config":
             cfg = Config()
             self._send_json({

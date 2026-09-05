@@ -70,6 +70,9 @@ def _copy_static_assets() -> None:
     extra = os.path.join(WEB_DIR, "kdj_example.html")
     if os.path.exists(extra):
         shutil.copy(extra, os.path.join(SITE_DIR, "kdj_example.html"))
+    intraday = os.path.join(WEB_DIR, "intraday.html")
+    if os.path.exists(intraday):
+        shutil.copy(intraday, os.path.join(SITE_DIR, "intraday.html"))
 
     with open(os.path.join(WEB_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
