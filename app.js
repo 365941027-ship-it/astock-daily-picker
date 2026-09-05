@@ -242,6 +242,111 @@ function switchSection(name) {
   });
 }
 
+/* ---------- 访问码门（静态版轻量防误入） ---------- */
+function staticGate(cfg) {
+  const pin = cfg && cfg.pin;
+  if (!pin) return true;
+  const key = "astock-gate-v1";
+  try {
+    if (localStorage.getItem(key) === pin) return true;
+  } catch (e) {}
+  const mask = $("#gateMask");
+  if (!mask) return true;
+  mask.hidden = false;
+  document.body.classList.add("gate-locked");
+  const btn = $("#gateBtn");
+  const input = $("#gatePin");
+  const err = $("#gateErr");
+  const submit = () => {
+    if (input.value.trim() === pin) {
+      try { localStorage.setItem(key, pin); } catch (e) {}
+      location.reload();
+    } else {
+      err.hidden = false;
+      input.value = "";
+      input.focus();
+    }
+  };
+  btn.onclick = submit;
+  input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") submit(); });
+  input.focus();
+  return false;
+}
+
+/* ---------- 首页产品区：结论 / 新鲜度 / 成绩单 / 口径说明 ---------- */
+function fmtSign(v, d = 2) { return v === null || v === undefined ? "—" : (v > 0 ? "+" : "") + Number(v).toFixed(d); }
+
+function verdictMeta(v) {
+  if (v === "不适合入场") return { tone: "bad", title: "今日大盘判定：不适合入场", text: "按纪律只做空仓观察，不新推个股；等待指数站稳中枢或出现明确转强信号。" };
+  if (v === "观望为主") return { tone: "mid", title: "今日大盘判定：观望为主", text: "只轻仓试错、优先观察最强者，单票仓位控制在 5% 以内，宁可错过不追高。" };
+  return { tone: "good", title: "今日大盘判定：适合入场", text: "环境偏强，可按推荐方案优选回踩不破的品种，注意不追高。" };
+}
+
+async function renderProductHero(cfg) {
+  const box = $("#productHero");
+  if (!box || !STATIC) return;
+  try {
+    const latest = await fetchWithTimeout("data/latest.json").then((r) => r.json()).catch(() => null);
+    const metrics = await fetchWithTimeout("data/metrics.json").then((r) => r.json()).catch(() => null);
+    if (!latest && !metrics) return;
+
+    const v = latest ? latest.market_verdict : "";
+    const meta = verdictMeta(v || "");
+    const dd = latest ? latest.data_date : (cfg && cfg.default_date) || "";
+    const upd = (metrics && metrics.updated_at) || (cfg && cfg.updated_at) || "";
+    const dateStr = upd ? upd.replace("T", " ").slice(0, 16) : "";
+
+    // 交易日判断（粗略：周末/节假日仍以数据日期提示）
+    const now = new Date();
+    const wd = now.getDay();
+    const sessionNote = wd === 0 || wd === 6
+      ? `当前为周末/休市，最新数据日为 ${dd || "—"}，下一交易日自动更新`
+      : `最新数据日 ${dd || "—"} · 盘后 18:05 自动更新`;
+
+    $("#freshnessBar").innerHTML =
+      `<span>📅 ${sessionNote}</span>` +
+      (dateStr ? `<span class="fr-sp">⏱ 报告生成 ${dateStr}</span>` : "") +
+      `<span class="fr-sp">🔗 <a href="strategy.html" target="_blank" rel="noopener">策略回测</a></span>`;
+
+    const heroHtml = latest
+      ? `<div class="hero-main tone-${meta.tone}">
+          <div class="hero-badge">每日结论</div>
+          <div class="hero-title">${meta.title}</div>
+          <div class="hero-text">${meta.text}</div>
+          ${(latest.priority && latest.priority.length) ? `<div class="hero-sub">当前仅 ${latest.priority.length} 只进入观察池（含排雷过滤），规则见策略卡。</div>` : ""}
+        </div>`
+      : `<div class="empty">暂无最新结论</div>`;
+    $("#heroCard").innerHTML = heroHtml;
+
+    if (metrics && metrics.summary) {
+      const s = metrics.summary;
+      const rec = metrics.recommended || {};
+      const failN = metrics.n_failures || 0;
+      const items = [
+        ["推荐方案", rec.name || "G", rec.desc || ""],
+        ["交易样本", `${s.n_trades || 0} 笔`, `未触发${metrics.transparency ? "" : ""}`],
+        ["胜率", fmtSign(s.win_rate, 1) + "%", ""],
+        ["累计收益", fmtSign(s.cum_return) + "%", "复利模拟"],
+        ["最大回撤", (s.max_drawdown == null ? "—" : s.max_drawdown.toFixed(1)) + "%", "过程波动"],
+        ["vs 上证", fmtSign(s.excess_return) + "%", `基准 ${fmtSign(s.bench_return)}%`],
+      ];
+      $("#scoreStrip").innerHTML = items.map(([k, val, sub]) =>
+        `<div class="score-item"><div class="score-k">${k}</div><div class="score-v">${val}</div><div class="score-s">${sub}</div></div>`).join("") +
+        `<div class="score-item score-fail"><div class="score-k">亏损复盘</div><div class="score-v">${failN} 笔</div><div class="score-s">见策略报告明细</div></div>`;
+    } else {
+      $("#scoreStrip").innerHTML = "";
+    }
+
+    const notes = (metrics && metrics.transparency && metrics.transparency.notes) || [];
+    $("#notesBody").innerHTML =
+      `<ul>${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` +
+      `<p class="disclaimer">本页面为个人量化研究记录：不保证准确、不构成任何投资建议；据此操作风险自负。</p>`;
+    box.hidden = false;
+  } catch (e) {
+    box.hidden = true;
+  }
+}
+
 document.querySelectorAll(".nav-item").forEach((a) => {
   a.onclick = () => switchSection(a.dataset.section);
 });
@@ -271,6 +376,7 @@ async function init() {
     return;
   }
   const cfg = await fetchWithTimeout("/api/config").then((r) => r.json()).catch(() => ({}));
+  if (STATIC && !staticGate(cfg)) return;
   const saved = loadParams();
   $("#inputDate").value = saved.date || cfg.default_date || "";
   $("#inputTop").value = saved.top || cfg.default_top || 8;
@@ -307,6 +413,7 @@ async function init() {
     fetchWithTimeout("data/latest.json").then((r) => r.json()).then((r) => {
       if (r && r.priority) renderResult(r);
     }).catch(() => {});
+    renderProductHero(cfg);
   }
   pollStatus();
   setInterval(pollStatus, 2500);

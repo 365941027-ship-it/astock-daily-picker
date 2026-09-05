@@ -8,6 +8,18 @@
   <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
+  <!-- 访问码门（静态版配置 PIN 后生效，轻量防误入） -->
+  <div class="gate-mask" id="gateMask" hidden>
+    <div class="gate-box">
+      <div class="gate-logo">股</div>
+      <h2>A股每日选股</h2>
+      <p>个人研究记录，仅限受邀查看。请输入访问码：</p>
+      <input id="gatePin" type="password" inputmode="numeric" maxlength="8" placeholder="访问码" autocomplete="off">
+      <button id="gateBtn" class="primary">进入</button>
+      <div class="gate-err" id="gateErr" hidden>访问码不正确，请重试。</div>
+    </div>
+  </div>
+
   <div class="layout">
     <!-- 左侧导航 -->
     <aside class="sidebar">
@@ -29,12 +41,32 @@
       </nav>
       <div class="side-footer">
         <div class="status-badge" id="statusBadge">空闲</div>
-        <p class="side-note">仅个人研究，不构成投资建议</p>
+        <a class="side-link" href="strategy.html" target="_blank" rel="noopener">策略回测与参数对比 ↗</a>
+        <p class="side-note">个人研究记录 · 不构成投资建议</p>
       </div>
     </aside>
 
     <!-- 内容区 -->
     <main class="content">
+      <!-- 产品结论区：一句话结论 + 数据新鲜度 + 成绩单 + 说明 -->
+      <div class="product-hero" id="productHero" hidden>
+        <div class="freshness-bar" id="freshnessBar"></div>
+        <div class="hero-card" id="heroCard"></div>
+        <div class="score-strip" id="scoreStrip"></div>
+        <details class="notes-box" id="guideBox">
+          <summary>三步使用法（第一次看这里）</summary>
+          <ol class="guide-list">
+            <li>先看顶部“今日结论”：大盘不适合入场就空仓观察，其余内容不必再翻。</li>
+            <li>再看“优先观察”表：等回踩到卡片/表格给的支撑位附近，不追高。</li>
+            <li>盘后回来看“预判核对”：系统会复盘昨天的观察今天是否兑现，并更新成绩单。</li>
+          </ol>
+        </details>
+        <details class="notes-box" id="notesBox">
+          <summary>口径与风险说明（点击展开）</summary>
+          <div id="notesBody"></div>
+        </details>
+      </div>
+
       <!-- 选股 -->
       <section class="section active" id="sec-pick">
         <div class="card">
