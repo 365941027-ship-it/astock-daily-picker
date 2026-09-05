@@ -56,7 +56,6 @@ PRESETS = [
         "name": "G 弱市禁买+止盈8%",
         "desc": "止损7% · 止盈8% · 持有5天 · 大盘弱势不交易",
         "params": {"target_pct": 0.08, "skip_weak": True},
-        "recommended": True,
     },
     {
         "name": "H 弱市禁买+止盈12%",
@@ -193,6 +192,7 @@ td:first-child,th:first-child{text-align:left}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
 .row-rec{background:#fffbe6!important}
 .row-rec td{box-shadow:inset 3px 0 0 #f59f00}
+.row-selected{outline:2px solid #2563eb;outline-offset:-2px}
 .rec-badge{display:inline-block;font-size:11px;font-weight:600;color:#fff;background:#f59f00;border-radius:6px;padding:1px 7px;margin-left:6px;vertical-align:1px}
 .scard{border:1px solid var(--line);border-radius:14px;padding:16px 18px;background:#fff}
 .scard .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
@@ -228,6 +228,10 @@ td:first-child,th:first-child{text-align:left}
   <div class="panel">
     <h2>参数对比：哪套规矩更稳？</h2>
     <p style="font-size:13px;color:var(--sub);margin:-6px 0 14px">同一批历史信号，换不同止损/止盈/持有天数/是否弱市禁买，结果并排对比。回撤越浅、收益越稳，说明这套规矩越抗揍。</p>
+    <label style="font-size:13px;color:var(--sub);display:block;margin-bottom:12px">选择方案查看推荐口径：
+      <select id="planSelect" style="margin-left:8px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px"></select>
+      <span id="planDesc" style="margin-left:8px"></span>
+    </label>
     <div class="table-wrap"><table id="cmpTable"></table></div>
     <div class="chart-box" style="height:320px"><canvas id="cmpChart"></canvas></div>
     <div class="legend" id="cmpLegend"></div>
@@ -248,6 +252,11 @@ td:first-child,th:first-child{text-align:left}
   <div class="panel">
     <h2>最新交易明细（按入场日倒序）</h2>
     <div class="table-wrap"><table id="trades"></table></div>
+  </div>
+
+  <div class="panel">
+    <h2>亏损案例复盘（最近 20 笔亏损，找共性）</h2>
+    <div class="table-wrap"><table id="failTable"></table></div>
   </div>
 
   <div class="panel">
@@ -316,6 +325,18 @@ CMP.map((c,i)=>`<tr class="${c.recommended?"row-rec":""}">
   <td class="num ${c.excess_return>=0?"t-red":"t-green"}">${c.excess_return>=0?"+":""}${fmt(c.excess_return)}%</td>
 </tr>`).join("") + `</tbody>`;
 
+const sel = document.getElementById("planSelect");
+const selDesc = document.getElementById("planDesc");
+CMP.forEach((c,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=c.name+(c.recommended?"（推荐）":""); sel.appendChild(o); });
+sel.value = String(CMP.findIndex(c=>c.recommended));
+function pickPlan(){
+  const i = Number(sel.value);
+  const c = CMP[i];
+  selDesc.textContent = c ? c.desc : "";
+  cmpTb.querySelectorAll("tbody tr").forEach((tr,j)=>{ tr.classList.toggle("row-selected", j===i); });
+}
+sel.onchange = pickPlan; pickPlan();
+
 const cc = document.getElementById("cmpChart");
 const cdpr = window.devicePixelRatio||1;
 const cw = cc.clientWidth||900, ch = cc.clientHeight||320;
@@ -351,6 +372,18 @@ if(DATA.trades.length){
     <td class="${cls(t.pnl_pct)}">${t.pnl_pct>=0?"+":""}${fmt(t.pnl_pct)}%</td><td>${t.reason}</td>
   </tr>`).join("") + `</tbody>`;
 } else { tb.innerHTML = `<tr><td class="empty">暂无已完成交易</td></tr>`; }
+
+const ft = document.getElementById("failTable");
+const fails = DATA.trades.filter(t=>t.pnl_pct<=0).sort((a,b)=>b.exit_date.localeCompare(a.exit_date)).slice(0,20);
+if(fails.length){
+  ft.innerHTML = `<thead><tr><th>信号日</th><th>代码</th><th>名称</th><th class="num">支撑</th><th class="num">入场</th><th class="num">出场</th><th class="num">盈亏</th><th>出场原因</th><th>共性提示</th></tr></thead><tbody>` +
+  fails.map(t=>`<tr>
+    <td>${t.signal_date}</td><td>${t.code}</td><td>${t.name}</td>
+    <td>${fmt(t.support)}</td><td>${fmt(t.entry)}</td><td>${fmt(t.exit)}</td>
+    <td class="t-green">${fmt(t.pnl_pct)}%</td><td>${t.reason}</td>
+    <td>${t.env_weak ? "弱市信号需更谨慎 / 弱市禁买可过滤" : "回踩后未延续，按纪律离场"}</td>
+  </tr>`).join("") + `</tbody>`;
+} else { ft.innerHTML = `<tr><td class="empty">暂无亏损交易</td></tr>`; }
 
 const cb = document.getElementById("cards");
 if(DATA.cards.length){
@@ -456,6 +489,49 @@ def main() -> int:
         "cmp_dates": all_dates,
         "cmp_bench": bench_aligned,
     }
+    # ---- 产品层：成绩单 / 失败案例 / 透明度（供主站首页 hero 使用） ----
+    loss_trades = [t for t in trades if t["pnl_pct"] <= 0]
+    loss_trades.sort(key=lambda t: (t["exit_date"], t["code"]), reverse=True)
+    failure_cases = [
+        {
+            "signal_date": t["signal_date"],
+            "entry_date": t["entry_date"],
+            "exit_date": t["exit_date"],
+            "code": t["code"],
+            "name": t["name"],
+            "support": t["support"],
+            "entry": t["entry"],
+            "exit": t["exit"],
+            "pnl_pct": t["pnl_pct"],
+            "reason": t["reason"],
+            "env_weak": bool(t.get("env_weak")),
+            "why": (
+                "弱市环境仍有仓位暴露" if t.get("env_weak")
+                else "回踩后未能延续，按纪律止损/到期离场"
+            ),
+        }
+        for t in loss_trades[:20]
+    ]
+    metrics = {
+        "data_date": (replay or {}).get("date", ""),
+        "updated_at": cn_now().isoformat(timespec="seconds"),
+        "recommended": {"name": rec["name"], "desc": rec["desc"]},
+        "summary": {k: summary[k] for k in ("n_trades", "win_rate", "cum_return", "max_drawdown", "profit_factor", "bench_return", "excess_return")},
+        "transparency": {
+            "sample_n_trades": summary["n_trades"],
+            "notes": [
+                "回测基于本地行情缓存，样本期较短，参数为样本内优化，存在过拟合风险",
+                "股票池取自当前缓存中的股票，未包含已退市/长期停牌标的，胜率可能高估",
+                "未计入交易佣金与滑点；A股卖出含印花税，实盘收益会低于回测",
+                "风险公告仅用于当日候选判断，历史回放未使用未来公告（已在实现中修正）",
+            ],
+        },
+        "failure_cases": failure_cases,
+        "n_failures": len(loss_trades),
+    }
+    with open(os.path.join(BASE, "site", "data", "metrics.json"), "w", encoding="utf-8") as f:
+        json.dump(metrics, f, ensure_ascii=False)
+    print(f"成绩单/失败案例已输出：{len(failure_cases)} 条案例")
     html = (
         PAGE.replace("__DATE__", cn_now().strftime("%Y-%m-%d"))
         .replace("__CARD_DATE__", card_date)

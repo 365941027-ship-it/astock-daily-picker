@@ -151,6 +151,20 @@ def build_strategy_report(proxy: str = "") -> bool:
         return False
 
 
+def send_push(data_date: str, verdict: str = "") -> bool:
+    """发送完成通知（未配置 webhook 时静默跳过）。"""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "send_push.py")
+    text = f"数据日期 {data_date}" + (f" · 大盘判定：{verdict}" if verdict else "")
+    cmd = [sys.executable, script, "--date", data_date, "--text", text]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        print(r.stdout.strip())
+        return r.returncode == 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"[推送] 调用异常：{exc}")
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="A股每日盘后自动更新")
     parser.add_argument("--date", default=None, help="数据日期 YYYY-MM-DD，默认最近交易日")
@@ -180,6 +194,13 @@ def main() -> int:
     if not args.no_publish and (ok1 or ok2 or ok3):
         build_strategy_report(args.proxy)
         publish_static(args.proxy)
+        try:
+            verdict = ""
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_picker", "cache", "last_result.json"), encoding="utf-8") as f:
+                verdict = (json.load(f).get("result") or {}).get("market_verdict", "")
+        except Exception:
+            pass
+        send_push(data_date, verdict)
     if args.send_email:
         send_email(data_date, args.to)
     if not (ok1 or ok2 or ok3):

@@ -278,6 +278,8 @@ def main() -> int:
         "version": VERSION,
         "static": True,
         "updated_at": cn_now().isoformat(timespec="seconds"),
+        # 访问码（轻量防误入；公网源码可见，不是强安全）。用环境变量 ASTOCK_PIN 覆盖，空则关闭。
+        "pin": os.environ.get("ASTOCK_PIN", "").strip() or "2580",
     })
 
     size = sum(
