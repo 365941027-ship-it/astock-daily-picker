@@ -23,6 +23,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;border-left:5px solid #adb5bd}
 .card.st-broke{border-left-color:#e03131;background:#fff5f5}
 .card.st-weak{border-left-color:#e8590c;background:#fff9ec}
+.card.st-tested_weak{border-left-color:#e8590c;background:#fff9ec}
 .card.st-tested{border-left-color:#f08c00;background:#fffbe6}
 .card.st-near{border-left-color:#1971c2}
 .card.st-target{border-left-color:#2f9e44;background:#f4fbf6}
@@ -74,6 +75,7 @@ const chg=v=>v===null||v===undefined?"—":(v>0?"+":"")+Number(v).toFixed(2)+"%"
 const statusMap={
   broke:["已破止损 · 放弃","st-broke","放弃"],
   weak:["跌破支撑 · 等站回","st-weak","注意"],
+  tested_weak:["回踩站回 · 结构未确认","st-tested_weak","观望"],
   tested:["回踩站回 · 触发候选","st-tested","触发"],
   target:["触及目标 · 可落袋","st-target","达标"],
   near:["接近支撑","st-near","接近"],
@@ -126,6 +128,8 @@ async function load(){
         </div>
         <div class="status-txt" style="color:${i.status==="broke"?"#e03131":i.status==="tested"?"#f08c00":i.status==="target"?"#2f9e44":"#1971c2"}">${sm[0]}</div>
         <div class="note">${esc(i.note)}</div>
+        ${i.struct&&i.struct.ok?`<div class="risk" style="color:#2f9e44">✓ 结构确认：MA5 ${fmt(i.struct.ma5)} · MACD ${fmt(i.struct.dif)}/${fmt(i.struct.dea)} · K${fmt(i.struct.k)}>D${fmt(i.struct.d)}</div>`:""}
+        ${i.struct&&!i.struct.ok?`<div class="risk">✗ 结构未确认：${esc((i.struct.reasons||[]).slice(0,2).join("；"))}</div>`:""}
         ${i.risks&&i.risks.length?`<div class="risk">⚠ ${esc(i.risks.slice(0,2).join("；"))}</div>`:""}
       </div>`;
     }).join("");
