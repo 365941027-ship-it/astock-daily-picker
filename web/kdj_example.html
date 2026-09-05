@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KDJ 金叉 vs 拐头 · 真实案例</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;background:#f4f6fa;color:#1f2733;line-height:1.7}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 18px 60px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:#667085;font-size:13px;margin-bottom:22px}
+.case{background:#fff;border:1px solid #e5eaf0;border-radius:16px;padding:20px 22px;margin-bottom:20px}
+.case-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.case-title{font-size:17px;font-weight:700}
+.tag{font-size:12px;padding:4px 12px;border-radius:999px;font-weight:600}
+.tag.golden{background:#fff0e6;color:#e8590c}
+.tag.turn{background:#e7f5ff;color:#1971c2}
+.mean{font-size:13px;color:#495057;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
+th,td{padding:8px 10px;border-bottom:1px solid #edf1f6;text-align:right;font-variant-numeric:tabular-nums}
+th{background:#f7f9fc;color:#667085;font-weight:600}
+td:first-child,th:first-child{text-align:left}
+.hl{background:#fff3bf;font-weight:700}
+.hl-k{color:#e8590c}.hl-d{color:#1971c2}
+.arrow{color:#e03131;font-weight:700}
+.foot{font-size:12px;color:#667085;margin-top:24px;border-top:1px solid #e5eaf0;padding-top:12px}
+canvas{width:100%;height:auto;background:#fff;border-radius:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>KDJ 金叉 vs 拐头 · 真实案例</h1>
+  <div class="sub">数据来自你的行情缓存，截至 2026-09-04。金叉=K上穿D；拐头=K掉头向上但还没穿过D。</div>
+
+  <div class="case">
+    <div class="case-head">
+      <div class="case-title">案例一 · 金叉：吉林化纤 000420</div>
+      <span class="tag golden">K 上穿 D = 金叉</span>
+    </div>
+    <div class="mean">9-03 收 3.69 时 K=48.42 还在 D=50.49 <b>下方</b>（弱）；9-04 收 3.82，K=51.20 跑到 D=50.73 <b>上方</b>，完成交叉——这就是“K 从下往上穿过 D”。</div>
+    <canvas id="c1"></canvas>
+  </div>
+
+  <div class="case">
+    <div class="case-head">
+      <div class="case-title">案例二 · 拐头：视觉中国 000681</div>
+      <span class="tag turn">K 掉头向上 = 拐头</span>
+    </div>
+    <div class="mean">9-02→9-03 K 一路往下掉（46.96→41.81），D 继续慢升，两线还没交叉；9-04 K 从 41.81 掉头回到 46.10，D=40.54——K 仍 > D，但方向由跌转涨，这就是“拐头”。</div>
+    <canvas id="c2"></canvas>
+  </div>
+
+  <div class="foot">仅供理解 KDJ 形态，不构成投资建议。KDJ 由随机指标计算，K 为快线、D 为慢线、J 为衍生值。</div>
+</div>
+<script>
+function draw(canvas, title, rows, crossIdx, type){
+  const dpr = window.devicePixelRatio||1;
+  const w = canvas.clientWidth||900, h = 300;
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  const padL=54, padR=16, padT=22, padB=28;
+  const vals = rows.flatMap(r=>[r.k,r.d,r.j]);
+  let lo=Math.min(...vals), hi=Math.max(...vals);
+  const pad=(hi-lo)*0.15||10; lo-=pad; hi+=pad;
+  const px=i=>padL+(w-padL-padR)*i/(rows.length-1);
+  const py=v=>padT+(hi-v)/(hi-lo)*(h-padT-padB);
+  ctx.strokeStyle="#eef1f5";
+  for(let g=0;g<=4;g++){const y=padT+(h-padT-padB)*g/4;ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(w-padR,y);ctx.stroke();
+    ctx.fillStyle="#9aa4b2";ctx.font="11px sans-serif";ctx.textAlign="right";ctx.fillText((hi-(hi-lo)*g/4).toFixed(0),padL-6,y+4);}
+  const ser={k:{color:"#e8590c",label:"K 快线"},d:{color:"#1971c2",label:"D 慢线"},j:{color:"#adb5bd",label:"J 衍生"}};
+  Object.entries(ser).forEach(([key,s])=>{
+    ctx.strokeStyle=s.color;ctx.lineWidth=key==="j"?1.4:2.2;ctx.beginPath();
+    rows.forEach((r,i)=>{const x=px(i),y=py(r[key]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();
+    ctx.fillStyle=s.color;ctx.font="12px sans-serif";ctx.fillText(s.label, padL, padT-10+Object.keys(ser).indexOf(key)*16);
+  });
+  // 标记
+  if(crossIdx!=null){
+    const x=px(crossIdx), r=rows[crossIdx];
+    const mark = type==="golden" ? "金叉 K↑穿D" : "拐头 K↑";
+    ctx.fillStyle="#e03131";ctx.beginPath();ctx.arc(x,py(r.k),5,0,7);ctx.fill();
+    ctx.fillStyle="#e03131";ctx.font="bold 12px sans-serif";ctx.textAlign="center";
+    ctx.fillText(mark, x, py(r.k)-14);
+  }
+  // 日期
+  ctx.fillStyle="#667085";ctx.font="11px sans-serif";ctx.textAlign="center";
+  rows.forEach((r,i)=>{const x=px(i);ctx.fillText(r.day.slice(5),x,h-8);});
+}
+const c1=[{day:"2026-08-31",k:62.5,d:46.6,j:94.3},{day:"2026-09-01",k:57.9,d:50.0,j:73.9},{day:"2026-09-02",k:54.6,d:51.5,j:60.8},{day:"2026-09-03",k:48.4,d:50.5,j:44.3},{day:"2026-09-04",k:51.2,d:50.7,j:52.2}];
+const c2=[{day:"2026-09-01",k:48.0,d:30.1,j:83.8},{day:"2026-09-02",k:47.0,d:35.7,j:69.4},{day:"2026-09-03",k:41.8,d:37.8,j:49.9},{day:"2026-09-04",k:46.1,d:40.5,j:57.2}];
+draw(document.getElementById("c1"),"金叉",c1,4,"golden");
+draw(document.getElementById("c2"),"拐头",c2,3,"turn");
+window.addEventListener("resize",()=>{draw(document.getElementById("c1"),"",c1,4,"golden");draw(document.getElementById("c2"),"",c2,3,"turn");});
+</script>
+</body>
+</html>

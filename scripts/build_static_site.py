@@ -67,6 +67,9 @@ def _copy_static_assets() -> None:
     os.makedirs(SITE_DIR, exist_ok=True)
     shutil.copy(os.path.join(WEB_DIR, "style.css"), os.path.join(SITE_DIR, "style.css"))
     shutil.copy(os.path.join(WEB_DIR, "app.js"), os.path.join(SITE_DIR, "app.js"))
+    extra = os.path.join(WEB_DIR, "kdj_example.html")
+    if os.path.exists(extra):
+        shutil.copy(extra, os.path.join(SITE_DIR, "kdj_example.html"))
 
     with open(os.path.join(WEB_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
