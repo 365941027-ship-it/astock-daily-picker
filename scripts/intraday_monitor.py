@@ -20,20 +20,22 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, time as dtime, timedelta, timezone
+from datetime import datetime, date, time as dtime, timedelta, timezone
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
 
 from daily_picker.config import Config  # noqa: E402
 from daily_picker.data_fetch import fetch_quotes_realtime  # noqa: E402
+from daily_picker.indicators import kdj_series, macd_series  # noqa: E402
 from daily_picker.risks import load_risk_cache  # noqa: E402
-from daily_picker.strategy import build_cards, build_watch_cards  # noqa: E402
+from daily_picker.strategy import build_cards, build_watch_cards, load_kline_bars  # noqa: E402
 from daily_picker.userdata import load as load_userdata  # noqa: E402
 
 CN_TZ = timezone(timedelta(hours=8))
 STATUS_FILE = os.path.join(BASE, "daily_picker", "cache", "intraday_status.json")
 PY = sys.executable
+CFG_PROXY = ""
 
 
 def _now() -> datetime:
@@ -97,8 +99,81 @@ def classify(price, low, high, card) -> tuple[str, str]:
     return "watch", f"未到支撑，现价 {price:.2f}（距支撑 {dist:.1f}%）"
 
 
-def snapshot() -> dict:
+def compute_structure(code: str, quote: dict, in_session: bool) -> dict | None:
+    """实时计算结构确认（1 价≥MA5 / 3 MACD未走弱 / 4 K>D）。
+
+    盘中用“实时价补一根当日虚拟K”重算日线指标；非交易时段用最近收盘K。
+    数据不足返回 None（调用方按“未知”处理，不降级）。
+    """
+    bars = load_kline_bars(code)
+    if not bars or len(bars) < 35:
+        return None
+    bars = [dict(b) for b in bars]
+    today = date.today().isoformat()
+    # 若在交易时段且实时价有效，追加“今日”虚拟K，让 MA5/MACD/KDJ 反映盘中进展
+    price = quote.get("price")
+    if in_session and price is not None:
+        prev = bars[-1]
+        high = quote.get("high")
+        low = quote.get("low")
+        open_ = quote.get("open")
+        bars.append({
+            "date": today,
+            "open": open_ if open_ is not None else prev["close"],
+            "close": price,
+            "high": high if high is not None else max(prev["close"], price),
+            "low": low if low is not None else min(prev["close"], price),
+            "volume": prev.get("volume", 0),
+        })
+    closes = [b["close"] for b in bars]
+    highs = [b["high"] for b in bars]
+    lows = [b["low"] for b in bars]
+    ma5 = sum(closes[-5:]) / 5 if len(closes) >= 5 else None
+    ma10 = sum(closes[-10:]) / 10 if len(closes) >= 10 else None
+    macd = macd_series(closes)
+    kdj = kdj_series(highs, lows, closes)
+    flags = {}
+    reasons = []
+    # 1) 现价 ≥ MA5
+    flags["ma5"] = ma5 is not None and price is not None and price >= ma5
+    if not flags["ma5"]:
+        reasons.append("现价仍在MA5下方")
+    # 3) MACD柱体未继续走弱：DIF≥DEA 或 柱体比上一日改善
+    if macd and len(macd["dif"]) >= 2:
+        dif, dea, hist = macd["dif"][-1], macd["dea"][-1], macd["hist"][-1]
+        prev_hist = macd["hist"][-2]
+        flags["macd"] = dif >= dea or hist > prev_hist
+        if not flags["macd"]:
+            reasons.append("MACD仍在走弱(DIF<DEA且柱体未改善)")
+    else:
+        flags["macd"] = False
+        reasons.append("MACD数据不足")
+    # 4) KDJ未死叉：K>D
+    if kdj:
+        flags["kdj"] = kdj["k"][-1] > kdj["d"][-1]
+        if not flags["kdj"]:
+            reasons.append("KDJ死叉(K<D)")
+    else:
+        flags["kdj"] = False
+        reasons.append("KDJ数据不足")
+    return {
+        "ok": all(flags.values()),
+        "price": price,
+        "ma5": round(ma5, 2) if ma5 is not None else None,
+        "ma10": round(ma10, 2) if ma10 is not None else None,
+        "k": round(kdj["k"][-1], 2) if kdj else None,
+        "d": round(kdj["d"][-1], 2) if kdj else None,
+        "dif": round(macd["dif"][-1], 3) if macd else None,
+        "dea": round(macd["dea"][-1], 3) if macd else None,
+        "flags": flags,
+        "reasons": reasons,
+    }
+
+
+def snapshot(proxy: str = "") -> dict:
     cfg = Config()
+    if proxy:
+        cfg.proxy = proxy
     payload, day, verdict = latest_replay_and_verdict()
     if not payload:
         return {"ok": False, "error": "暂无回放数据，请先运行每日更新"}
@@ -118,11 +193,21 @@ def snapshot() -> dict:
     watch = [c for c in cards if not c.get("vetoed")]
     codes = [c["code"] for c in watch]
     quotes = fetch_quotes_realtime(codes, cfg) if codes else {}
+    in_session = _in_session(False)
     items = []
     for c in watch:
         q = quotes.get(c["code"], {})
         price = q.get("price")
         status, note = classify(price, q.get("low"), q.get("high"), c)
+        struct = None
+        if status == "tested":
+            struct = compute_structure(c["code"], q, in_session)
+            if struct and not struct["ok"]:
+                status = "tested_weak"
+                note = (f"回踩支撑 {c['support']:.2f} 后站回，但结构未确认（"
+                        f"{'；'.join(struct['reasons'][:2]) or '数据不足'}），继续观察")
+            elif struct and struct["ok"]:
+                note += " · 结构确认（价≥MA5 / MACD未走弱 / K>D）"
         items.append({
             "code": c["code"],
             "name": c["name"],
@@ -141,6 +226,7 @@ def snapshot() -> dict:
             "status": status,
             "note": note,
             "risks": c.get("risks", []),
+            "struct": struct,
         })
     items.sort(key=lambda x: ("broke" == x["status"], "target" == x["status"], "weak" == x["status"]),
                reverse=True)
@@ -149,7 +235,7 @@ def snapshot() -> dict:
         "generated_at": _now().isoformat(timespec="seconds"),
         "data_date": day,
         "market_verdict": verdict,
-        "in_session": _in_session(False),
+        "in_session": in_session,
         "items": items,
     }
 
@@ -161,7 +247,7 @@ def changed_events(prev: dict | None, cur: dict) -> list[dict]:
     events = []
     for i in cur.get("items", []):
         old = prev_map.get(i["code"])
-        if old and old != i["status"] and i["status"] in ("broke", "weak", "tested", "target", "near"):
+        if old and old != i["status"] and i["status"] in ("broke", "weak", "tested", "tested_weak", "target", "near"):
             events.append({"code": i["code"], "name": i["name"], "from": old, "to": i["status"], "note": i["note"]})
     return events
 
@@ -195,7 +281,10 @@ def main() -> int:
     parser.add_argument("--watch", action="store_true", help="循环盯盘（交易时段）")
     parser.add_argument("--interval", type=int, default=30, help="循环间隔秒数")
     parser.add_argument("--force", action="store_true", help="忽略交易时段限制（测试用）")
+    parser.add_argument("--proxy", default="", help="行情代理，如 socks5h://127.0.0.1:7897")
     args = parser.parse_args()
+    global CFG_PROXY
+    CFG_PROXY = args.proxy
 
     in_session = _in_session(args.force)
     if not in_session and not args.watch:
@@ -206,7 +295,7 @@ def main() -> int:
     first = True
     while True:
         try:
-            s = snapshot()
+            s = snapshot(proxy=args.proxy)
             if not s.get("ok"):
                 print(s.get("error", "未知错误"))
                 return 1
@@ -216,7 +305,7 @@ def main() -> int:
             save_status(s)
             n = len(s["items"])
             print(f"[盯盘] {s['generated_at']} 数据日 {s['data_date']} 大盘:{s['market_verdict'] or '未知'} 候选 {n} 只")
-            urgent = [i for i in s["items"] if i["status"] in ("broke", "weak", "tested", "target")]
+            urgent = [i for i in s["items"] if i["status"] in ("broke", "weak", "tested", "tested_weak", "target")]
             for i in urgent:
                 print(f"   [{i['status'].upper():5s}] {i['code']} {i['name']} {i['note']}")
             if events:
