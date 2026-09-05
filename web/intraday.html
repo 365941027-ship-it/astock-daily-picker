@@ -46,6 +46,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--sub);margin-top:14px}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .hint{font-size:12px;color:var(--sub);background:#fff;border:1px dashed #cbd5e1;border-radius:10px;padding:12px 14px;margin-top:14px}
+.share-box{font-size:13px;background:#eef6ff;border:1px solid #b9d8ff;border-radius:12px;padding:11px 14px;margin:0 0 12px;color:#1c3d6e;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.share-link{font-weight:600;word-break:break-all;color:#1d4ed8}
+.share-copy{font-size:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:5px 14px;cursor:pointer}
+.share-copy:hover{background:#1d4ed8}
+.share-tip{flex-basis:100%;font-size:11px;color:#667085}
 .refresh{font-size:12px;color:#2563eb;cursor:pointer;text-decoration:underline}
 </style>
 </head>
@@ -56,6 +61,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
     <span class="live off" id="liveBadge">连接中…</span>
   </div>
   <div class="meta" id="meta">加载中…</div>
+  <div class="share-box" id="shareBox" hidden>
+    <b>朋友实时链接</b>：<span id="shareLink" class="share-link">…</span>
+    <button class="share-copy" id="shareCopy">复制</button>
+    <div class="share-tip" id="shareTip"></div>
+  </div>
   <div class="hint" style="margin-bottom:12px">想盯自己的股票？回主页 <b>自选股</b> 添加代码即可，本盯盘会按同一套规则（支撑/止损/止盈）自动合并监控。</div>
   <div id="banner"></div>
   <div id="content" class="empty">正在读取盯盘状态…</div>
@@ -94,6 +104,20 @@ function bell(code,name,note){
   }catch(e){}
 }
 async function load(){
+  // 拉取本机配置，展示“朋友实时链接”（仅动态访问 8235 时有效）
+  try{
+    const cfg=await fetch("/api/config",{cache:"no-store"}).then(r=>r.json()).catch(()=>({}));
+    const tu=(cfg&&cfg.tunnel_url)||"";
+    const sb=$("#shareBox");
+    if(tu&&!location.hostname.endsWith("github.io")){
+      sb.hidden=false;
+      $("#shareLink").textContent=tu+"/intraday";
+      $("#shareTip").textContent="电脑保持开机+Clash运行，朋友即可打开。隧道重启后地址会变，回来刷新本页获取最新。";
+      $("#shareCopy").onclick=()=>{
+        try{navigator.clipboard.writeText(tu+"/intraday");$("#shareTip").textContent="已复制 ✓";}catch(e){$("#shareTip").textContent="复制失败，请手动选中复制";}
+      };
+    } else { sb.hidden=true; }
+  }catch(e){}
   try{
     const r=await fetch("/api/intraday",{cache:"no-store"});
     const d=await r.json();

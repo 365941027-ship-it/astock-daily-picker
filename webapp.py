@@ -760,11 +760,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "还没有盯盘快照，请先运行 scripts/intraday_monitor.py"}, 404)
         elif path == "/api/config":
             cfg = Config()
+            tunnel_url = ""
+            try:
+                with open("/tmp/stock_tunnel.log", encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        i = line.find("https://")
+                        if i >= 0:
+                            token = line[i:].split()[0].rstrip(",")
+                            if ".trycloudflare.com" in token:
+                                tunnel_url = token
+            except Exception:
+                pass
             self._send_json({
                 "default_date": resolve_data_date(None).isoformat(),
                 "default_top": cfg.top_n,
                 "has_docx": HAS_DOCX,
                 "version": "0.2.0",
+                "tunnel_url": tunnel_url,
             })
         elif path == "/api/kline":
             code = (q.get("code") or [""])[0]

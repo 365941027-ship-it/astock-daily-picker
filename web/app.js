@@ -306,6 +306,9 @@ async function renderProductHero(cfg) {
     $("#freshnessBar").innerHTML =
       `<span>📅 ${sessionNote}</span>` +
       (dateStr ? `<span class="fr-sp">⏱ 报告生成 ${dateStr}</span>` : "") +
+      (cfg && cfg.tunnel_url
+        ? `<span class="fr-sp">🔴 <a href="${esc(cfg.tunnel_url)}/intraday" target="_blank" rel="noopener">实时盯盘（朋友可看）</a></span>`
+        : `<span class="fr-sp">🔴 <a href="intraday.html" target="_blank" rel="noopener">实时盯盘</a></span>`) +
       `<span class="fr-sp">🔗 <a href="strategy.html" target="_blank" rel="noopener">策略回测</a></span>`;
 
     const heroHtml = latest
