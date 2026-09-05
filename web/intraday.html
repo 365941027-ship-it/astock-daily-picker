@@ -31,6 +31,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .nm{font-size:15px;font-weight:700}
 .code{font-size:11px;color:var(--sub)}
 .tag{font-size:10px;padding:2px 8px;border-radius:6px;background:#f1f3f5;color:#495057;margin-top:5px}
+.tag-watch{background:#fff3bf;color:#b08900}
 .price-row{display:flex;align-items:baseline;gap:10px;margin:8px 0 4px}
 .price{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
 .chg{font-size:12px;font-weight:600}
@@ -54,6 +55,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
     <span class="live off" id="liveBadge">连接中…</span>
   </div>
   <div class="meta" id="meta">加载中…</div>
+  <div class="hint" style="margin-bottom:12px">想盯自己的股票？回主页 <b>自选股</b> 添加代码即可，本盯盘会按同一套规则（支撑/止损/止盈）自动合并监控。</div>
   <div id="banner"></div>
   <div id="content" class="empty">正在读取盯盘状态…</div>
   <div class="hint">
@@ -114,7 +116,7 @@ async function load(){
       return `<div class="card ${sm[1]}">
         <div class="ch"><div>
           <div class="nm">${esc(i.name)} <span class="code">${esc(i.code)}</span></div>
-          <span class="tag">${esc(i.category||"")} · ${esc(i.structure||"")}</span>
+          <span class="tag ${i.source==="watch"?"tag-watch":""}">${i.source==="watch"?"⭐ 自选盯盘":"系统候选"} · ${esc(i.category||"")}</span>
         </div><div class="price ${cls(i.pct_chg)}">${fmt(i.price)}</div></div>
         <div class="chg ${cls(i.pct_chg)}">${chg(i.pct_chg)}</div>
         <div class="levels">

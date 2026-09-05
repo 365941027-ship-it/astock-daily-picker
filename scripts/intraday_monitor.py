@@ -28,7 +28,8 @@ sys.path.insert(0, BASE)
 from daily_picker.config import Config  # noqa: E402
 from daily_picker.data_fetch import fetch_quotes_realtime  # noqa: E402
 from daily_picker.risks import load_risk_cache  # noqa: E402
-from daily_picker.strategy import build_cards  # noqa: E402
+from daily_picker.strategy import build_cards, build_watch_cards  # noqa: E402
+from daily_picker.userdata import load as load_userdata  # noqa: E402
 
 CN_TZ = timezone(timedelta(hours=8))
 STATUS_FILE = os.path.join(BASE, "daily_picker", "cache", "intraday_status.json")
@@ -102,6 +103,16 @@ def snapshot() -> dict:
     if not payload:
         return {"ok": False, "error": "暂无回放数据，请先运行每日更新"}
     cards = build_cards(payload, verdict, params={"target_pct": 0.08, "skip_weak": True})
+    # 合并用户自选股（与系统候选同规则盯盘；同代码优先系统候选）
+    try:
+        ud = load_userdata()
+        watch_items = ud.get("watchlist", []) or []
+    except Exception:
+        watch_items = []
+    if watch_items:
+        watch_cards = build_watch_cards(watch_items, cfg, verdict, params={"target_pct": 0.08, "skip_weak": True})
+        seen = {c["code"] for c in cards}
+        cards = cards + [c for c in watch_cards if c["code"] not in seen]
     risk_map = load_risk_cache()
     # 排雷一票否决剔除；只盯 priority+strong（弱市禁买仍显示“纪律禁买”供观察）
     watch = [c for c in cards if not c.get("vetoed")]
@@ -115,6 +126,7 @@ def snapshot() -> dict:
         items.append({
             "code": c["code"],
             "name": c["name"],
+            "source": "system" if c.get("category") != "自选盯盘" else "watch",
             "category": c.get("category", ""),
             "structure": c.get("structure", ""),
             "verdict_note": c.get("position", ""),

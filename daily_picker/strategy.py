@@ -251,3 +251,76 @@ def build_cards(replay_payload: Dict, verdict: str, params: Optional[Dict] = Non
             "vetoed": vetoed,
         })
     return cards
+
+
+def build_watch_cards(
+    watch_items: List[Dict],
+    cfg,
+    verdict: str,
+    params: Optional[Dict] = None,
+) -> List[Dict]:
+    """为用户自选股票生成策略卡（按同一套推荐规则）。
+
+    watch_items: [{"code": "000001", "name": "平安银行"}, ...]
+    规则：支撑 = max(MA5, 最近收盘日最低)；止损 = 支撑×(1-5%)；目标 = 最近收盘×(1+8%)；
+    大盘弱势时同样提示“弱市禁买/轻仓”。K线本地无缓存则联网拉取。
+    """
+    p = _merge_params(params or {"target_pct": 0.08, "skip_weak": True})
+    risk_cache = load_risk_cache()
+    from .data_fetch import fetch_kline  # noqa: E402（延迟导入，避免循环依赖）
+
+    cards: List[Dict] = []
+    for item in watch_items:
+        code = str(item.get("code") or "").zfill(6)
+        if not code or code == "000000":
+            continue
+        name = item.get("name") or code
+        bars = load_kline_bars(code)
+        if not bars:
+            try:
+                bars = fetch_kline(code, cfg)
+            except Exception:
+                bars = []
+        if len(bars) < 10:
+            continue
+        last = bars[-1]
+        closes = [b["close"] for b in bars[-30:]]
+        if len(closes) < 5:
+            continue
+        ma5 = sum(closes[-5:]) / 5
+        ma10 = sum(closes[-10:]) / 10 if len(closes) >= 10 else None
+        support = round(max(ma5, last["low"]), 2)
+        close = last["close"]
+        stop_pct = p.get("stop_pct", 0.07)
+        target_pct = p.get("target_pct", 0.08)
+        if p["skip_weak"] and verdict in ("不适合入场", "观望为主"):
+            position = "弱市禁买：等待大盘转强再入场"
+        elif verdict == "不适合入场":
+            position = "空仓观察，不推荐入场"
+        elif verdict == "观望为主":
+            position = "轻仓试探，单票 ≤5%"
+        else:
+            position = "单票 ≤10%，不集中"
+        structure = "多头排列" if (ma10 and ma5 > ma10 and close > ma10) else (
+            "站上5日线" if close > ma5 else "位于5日线下方"
+        )
+        risks = [r.get("note", "") for r in risk_cache.get(code, []) if not r.get("veto")]
+        vetoed = [r.get("note", "") for r in risk_cache.get(code, []) if r.get("veto")]
+        cards.append({
+            "code": code,
+            "name": name,
+            "category": "自选盯盘",
+            "structure": structure,
+            "close": close,
+            "pct_chg": last.get("pct_chg"),
+            "support": support,
+            "trigger": f"回踩 {support:.2f} 附近不破并转强",
+            "stop": round(support * (1 - stop_pct * 0.7), 2),
+            "target": round(close * (1 + target_pct), 2),
+            "hold_days": int(p.get("hold_days", 5)),
+            "position": position,
+            "note": f"自选股策略卡：现价参考 {close:.2f}，等回踩 {support:.2f} 附近不破再考虑；跌破止损位即放弃。",
+            "risks": risks,
+            "vetoed": vetoed,
+        })
+    return cards
