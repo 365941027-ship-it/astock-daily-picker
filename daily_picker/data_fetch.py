@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -37,6 +38,7 @@ SINA_SNAPSHOT = (
     "Market_Center.getHQNodeData?page={page}&num=100&sort=changepercent&asc=0"
     "&node=hs_a&symbol=&_s_r_a=init"
 )
+SINA_REALTIME = "https://hq.sinajs.cn/list={symbols}"
 SINA_SECTOR = "https://vip.stock.finance.sina.com.cn/q/view/newSinaHy.php"
 SINA_REFERER = "https://finance.sina.com.cn"
 
@@ -54,16 +56,22 @@ def secid_of(code: str) -> str:
 
 
 def fetch_quotes_realtime(codes: List[str], cfg: Config) -> Dict[str, Dict]:
-    """批量拉实时行情（东财 ulist），返回 {code: {...}}。
+    """批量拉实时行情（东财 ulist，失败回退新浪），返回 {code: {...}}。
 
     字段：f2最新价 f3涨跌幅 f15最高 f16最低 f17今开 f18昨收 f6成交额。
     非交易时段返回最近收盘快照值，可作盯盘参考。
     """
-    out: Dict[str, Dict] = {}
     codes = [str(c).zfill(6) for c in codes if str(c).zfill(6)]
     if not codes:
-        return out
-    # 单次最多约 60 只，超过分批
+        return {}
+    out = _fetch_quotes_eastmoney(codes, cfg)
+    if not out:
+        out = _fetch_quotes_sina(codes, cfg)
+    return out
+
+
+def _fetch_quotes_eastmoney(codes: List[str], cfg: Config) -> Dict[str, Dict]:
+    out: Dict[str, Dict] = {}
     for i in range(0, len(codes), 60):
         batch = codes[i : i + 60]
         params = {
@@ -91,6 +99,64 @@ def fetch_quotes_realtime(codes: List[str], cfg: Config) -> Dict[str, Dict]:
                 "open": _num(r.get("f17")),
                 "prev_close": _num(r.get("f18")),
                 "amount": _num(r.get("f6")),
+            }
+    return out
+
+
+def _fetch_quotes_sina(codes: List[str], cfg: Config) -> Dict[str, Dict]:
+    """新浪批量实时行情兜底（GBK，需 Referer），适配云端/国内直连。"""
+    out: Dict[str, Dict] = {}
+    for i in range(0, len(codes), 80):
+        batch = codes[i : i + 80]
+        syms = ",".join(("sh" if c[0] in "69" else "sz") + c for c in batch)
+        url = SINA_REALTIME.format(symbols=syms)
+        channel = _get_channel(cfg)
+        try:
+            if channel["engine"] == "curl":
+                cmd = ["curl", "-s", "-m", str(cfg.timeout), "-A", cfg.user_agent,
+                       "-H", "Referer: " + SINA_REFERER]
+                if channel["proxy"]:
+                    cmd += ["-x", channel["proxy"]]
+                cmd.append(url)
+                raw = subprocess.run(cmd, capture_output=True, timeout=cfg.timeout + 5, check=False).stdout
+            else:
+                req = urllib.request.Request(url, headers={
+                    "User-Agent": cfg.user_agent, "Referer": SINA_REFERER,
+                })
+                opener = urllib.request.build_opener(
+                    urllib.request.ProxyHandler({"http": channel["proxy"], "https": channel["proxy"]})
+                ) if channel["proxy"] else urllib.request.build_opener()
+                with opener.open(req, timeout=cfg.timeout) as resp:
+                    raw = resp.read()
+        except Exception:
+            continue
+        text = raw.decode("gbk", errors="replace")
+        for line in text.splitlines():
+            m = re.search(r'str_(?:sh|sz)(\d{6})="([^"]*)"', line)
+            if not m:
+                continue
+            code = m.group(1)
+            fields = m.group(2).split(",")
+            if not fields or len(fields) < 10 or not fields[0]:
+                continue
+            name = fields[0]
+            open_ = _num(fields[1])
+            prev = _num(fields[2])
+            price = _num(fields[3])
+            high = _num(fields[4])
+            low = _num(fields[5])
+            amount = _num(fields[9])
+            pct = (price / prev - 1.0) * 100.0 if price is not None and prev else None
+            out[code] = {
+                "code": code,
+                "name": name or code,
+                "price": price,
+                "pct_chg": round(pct, 2) if pct is not None else None,
+                "high": high,
+                "low": low,
+                "open": open_,
+                "prev_close": prev,
+                "amount": amount,
             }
     return out
 
