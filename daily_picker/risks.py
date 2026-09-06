@@ -24,6 +24,7 @@ from .data_fetch import _request
 
 
 EM_ANN = "https://np-anotice-stock.eastmoney.com/api/security/ann"
+EM_FIN = "https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/zyzbAjaxNew"
 
 # 风险规则：(分类, 关键词列表, 是否一票否决, 展示说明)
 RISK_RULES = [
@@ -40,6 +41,41 @@ RISK_RULES = [
     ("诉讼/冻结", ["诉讼", "仲裁", "冻结", "财产保全", "失信被执行"], False, "涉诉/冻结，注意"),
     ("高管变动", ["辞职", "离任", "离职"], False, "高管辞职/离任，注意"),
 ]
+
+# 财务亏损判定阈值：归母净利润 PARENTNETPROFIT < 0 视为亏损
+FIN_LOSS_THRESHOLD = 0.0
+
+
+def fetch_fin_loss(code: str, cfg: Config) -> Optional[Dict]:
+    """抓取最新报告期财务摘要，若归母净利润为负则判定财务亏损。
+
+    返回 {"loss": bool, "report_date": str, "net_profit": float, "note": str}。
+    数据不可用时返回 None（不误伤）。
+    """
+    code = str(code).zfill(6)
+    prefix = "SH" if code[0] in "69" else "SZ"
+    params = {"type": 0, "code": f"{prefix}{code}"}
+    url = EM_FIN + "?" + urllib.parse.urlencode(params)
+    try:
+        data = json.loads(_request(url, cfg))
+    except Exception:
+        return None
+    rows = data if isinstance(data, list) else (data.get("data") or [])
+    if not rows:
+        return None
+    r = rows[0]
+    net_profit = r.get("PARENTNETPROFIT")
+    report_date = str(r.get("REPORT_DATE") or "")[:10]
+    if net_profit is None:
+        return None
+    net_profit = float(net_profit)
+    loss = net_profit < FIN_LOSS_THRESHOLD
+    return {
+        "loss": loss,
+        "report_date": report_date,
+        "net_profit": net_profit,
+        "note": f"最新财报({report_date})归母净利润{net_profit/1e8:.2f}亿（{'亏损' if loss else '盈利'}）",
+    }
 
 # 先命中即生效；普通公告关键词（股东大会、分配预案等）不在列表内，不算风险。
 

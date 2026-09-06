@@ -52,6 +52,7 @@ from daily_picker.market_signal import market_signal, watch_sectors  # noqa: E40
 from daily_picker.market_signal import INDEX_INFO, index_signal_series  # noqa: E402
 from daily_picker.news import fetch_news, news_summary  # noqa: E402
 from daily_picker.risks import (  # noqa: E402
+    fetch_fin_loss,
     fetch_risk_map,
     save_risk_cache,
     risk_verdict,
@@ -297,6 +298,11 @@ def run_pipeline(params: Dict):
                         for c in result[bucket]:
                             risks = risk_map.get(c.code, [])
                             veto, reasons = risk_verdict(risks)
+                            # 财务亏损硬过滤：最新财报归母净利润为负 → 一票否决
+                            fin = fetch_fin_loss(c.code, cfg)
+                            if fin and fin["loss"]:
+                                reasons.append(fin["note"] + "，一票否决")
+                                veto = True
                             if veto:
                                 risk_rejected.append({
                                     "code": c.code,
@@ -307,6 +313,8 @@ def run_pipeline(params: Dict):
                                 })
                                 continue
                             c.risks = [r["note"] for r in risks]
+                            if fin and not fin["loss"]:
+                                c.risks.append(fin["note"])
                             c.risk_detail = risks
                             kept.append(c)
                         result[bucket] = kept
@@ -471,8 +479,33 @@ def replay_pipeline(params: Dict):
         total_picks = 0
         for d in dates:
             r = results[d]
-            pri = [cand_json(c) for c in r["priority"]]
-            strong = [cand_json(c) for c in r["strong"]]
+            pri = [c for c in r["priority"]]
+            strong = [c for c in r["strong"]]
+            # 仅对最新一天做财务亏损过滤（避免用今日财报回判历史 = 未来函数）
+            if d == dates[-1]:
+                try:
+                    fin_names: List[str] = []
+                    pri_kept: List[object] = []
+                    strong_kept: List[object] = []
+                    for c in pri:
+                        fin = fetch_fin_loss(c.code, cfg)
+                        if fin and fin["loss"]:
+                            fin_names.append(f"{c.name}({c.code})")
+                            continue
+                        pri_kept.append(c)
+                    for c in strong:
+                        fin = fetch_fin_loss(c.code, cfg)
+                        if fin and fin["loss"]:
+                            fin_names.append(f"{c.name}({c.code})")
+                            continue
+                        strong_kept.append(c)
+                    pri, strong = pri_kept, strong_kept
+                    if fin_names:
+                        JOB.log("财务亏损剔除（最新交易日）：" + "、".join(fin_names))
+                except Exception as exc:  # noqa: BLE001 - 财务检查失败降级
+                    JOB.log(f"财务亏损检查失败（降级）：{exc}")
+            pri = [cand_json(c) for c in pri]
+            strong = [cand_json(c) for c in strong]
             excl = [cand_json(c, full=True) for c in r["excluded"]]
             payload = {
                 "date": d,
