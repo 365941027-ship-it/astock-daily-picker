@@ -165,6 +165,25 @@ def send_push(data_date: str, verdict: str = "") -> bool:
         return False
 
 
+def build_local_site(proxy: str = "") -> bool:
+    """仅生成本地 site/（含 latest.json/metrics），不推送 GitHub。供容器盯盘读取大盘判定。"""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "build_static_site.py")
+    cmd = [sys.executable, script]
+    if proxy:
+        cmd.append("--proxy")
+        cmd.append(proxy)
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+        if r.returncode == 0:
+            print("[本地站点] 已生成（latest.json 供盯盘读取）")
+            return True
+        print(f"[本地站点] 生成失败：{r.stdout} {r.stderr}")
+        return False
+    except Exception as exc:  # noqa: BLE001
+        print(f"[本地站点] 生成异常：{exc}")
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="A股每日盘后自动更新")
     parser.add_argument("--date", default=None, help="数据日期 YYYY-MM-DD，默认最近交易日")
@@ -175,6 +194,7 @@ def main() -> int:
     parser.add_argument("--send-email", action="store_true", help="同时发送邮件报告")
     parser.add_argument("--to", default="365941027@qq.com", help="收件邮箱")
     parser.add_argument("--no-publish", action="store_true", help="跳过 GitHub Pages 发布")
+    parser.add_argument("--build-local-site", action="store_true", help="跳过发布但生成本地 site/（供盯盘/接口）")
     args = parser.parse_args()
 
     data_date = (args.date or resolve_data_date(None).isoformat())
@@ -191,7 +211,10 @@ def main() -> int:
         ok1 = run_pick(data_date, args.proxy, refresh=args.refresh)
     ok2 = run_replay_update(data_date, args.history_start)
     ok3 = run_verify_update(data_date, args.history_start)
-    if not args.no_publish and (ok1 or ok2 or ok3):
+    if args.build_local_site and (ok1 or ok2 or ok3):
+        build_strategy_report(args.proxy)
+        build_local_site(args.proxy)
+    elif not args.no_publish and (ok1 or ok2 or ok3):
         build_strategy_report(args.proxy)
         publish_static(args.proxy)
         try:

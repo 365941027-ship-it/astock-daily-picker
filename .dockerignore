@@ -1,0 +1,11 @@
+.git
+.github
+.codex
+.agents
+site
+logs
+tmp
+__pycache__
+*.pyc
+.DS_Store
+daily_picker/cache

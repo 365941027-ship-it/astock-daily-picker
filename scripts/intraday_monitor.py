@@ -65,7 +65,12 @@ def latest_replay_and_verdict():
         with open(os.path.join(BASE, "site", "data", "latest.json"), encoding="utf-8") as f:
             verdict = json.load(f).get("market_verdict", "")
     except Exception:
-        pass
+        # 容器/纯本地未构建静态站时，回退读 last_result.json 里的市场判定
+        try:
+            with open(os.path.join(BASE, "daily_picker", "cache", "last_result.json"), encoding="utf-8") as f:
+                verdict = (json.load(f).get("result") or {}).get("market_verdict", "")
+        except Exception:
+            pass
     return payload, day, verdict
 
 
