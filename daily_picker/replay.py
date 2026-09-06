@@ -118,6 +118,11 @@ def run_replay(
             ind = days.get(date)
             if not ind or ind["bars"] < cfg.min_list_days:
                 continue
+            # 板块口径：创业板/科创板不纳入推荐（与当日选股一致）
+            if cfg.exclude_chinext and code.startswith(("300", "301")):
+                continue
+            if cfg.exclude_star and code.startswith(("688", "689")):
+                continue
             rows.append({
                 "f12": code,
                 "f14": name_map.get(code, code),

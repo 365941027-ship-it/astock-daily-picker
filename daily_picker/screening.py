@@ -68,6 +68,13 @@ class Candidate:
 
 def prefilter(snapshot_rows: List[Dict], cfg: Config) -> List[Dict]:
     """流动性预筛：只对可能进入候选的股票拉日K，节省请求。"""
+    def _board_excluded(code: str) -> bool:
+        if cfg.exclude_chinext and code.startswith(("300", "301")):
+            return True
+        if cfg.exclude_star and code.startswith(("688", "689")):
+            return True
+        return False
+
     rows = []
     for row in snapshot_rows:
         code = str(row.get("f12") or "").zfill(6)
@@ -75,6 +82,8 @@ def prefilter(snapshot_rows: List[Dict], cfg: Config) -> List[Dict]:
         if is_st(name) or name.startswith(("N", "C")):
             continue
         if code.startswith(("4", "8", "92")):  # 北交所等不在口径内
+            continue
+        if _board_excluded(code):  # 创业板/科创板不在推荐口径
             continue
         amount = _num(row.get("f6"))
         turnover = _num(row.get("f8"))

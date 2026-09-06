@@ -23,7 +23,11 @@ def cn_now() -> datetime:
 @dataclass
 class Config:
     # ---- 行情范围：深主板 / 创业板 / 沪主板 / 科创板 ----
-    fs_filter: str = "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23"
+    # 只保留沪深主板（去掉创业板 t:80 与科创板 t:23）
+    fs_filter: str = "m:0+t:6,m:1+t:2"
+    # 板块排除（代码前缀判断，双保险；即使行情源返回也在此剔除）
+    exclude_chinext: bool = True     # 创业板 300/301 不纳入推荐
+    exclude_star: bool = True        # 科创板 688/689 不纳入推荐
     kline_bars: int = 160        # 拉取日K根数，足够算 MA20/MACD/KDJ 和 10 日涨幅
     fqt: int = 1                 # 前复权
 

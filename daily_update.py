@@ -195,11 +195,12 @@ def main() -> int:
     parser.add_argument("--to", default="365941027@qq.com", help="收件邮箱")
     parser.add_argument("--no-publish", action="store_true", help="跳过 GitHub Pages 发布")
     parser.add_argument("--build-local-site", action="store_true", help="跳过发布但生成本地 site/（供盯盘/接口）")
+    parser.add_argument("--force", action="store_true", help="即使数据已是最新也强制重跑（用于规则变更后重算历史）")
     args = parser.parse_args()
 
     data_date = (args.date or resolve_data_date(None).isoformat())
     print(f"== 每日盘后更新 {data_date} ==")
-    if already_up_to_date(data_date):
+    if already_up_to_date(data_date) and not args.force:
         print(f"数据已更新到 {data_date}（回放索引最后一天），本次跳过。")
         return 0
     if args.offline:
