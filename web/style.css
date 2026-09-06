@@ -448,6 +448,26 @@ td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: t
 .mon-elig.ok { background: #ebfbee; color: #2b8a3e; }
 .mon-elig.bad { background: #fff0f0; color: #c92a2a; }
 .monitor-rejected { background: #fff0f0; border: 1px solid #ffc9c9; color: #c92a2a; border-radius: 10px; padding: 9px 13px; font-size: 12px; margin-bottom: 12px; }
+.monitor-legend { display: flex; flex-direction: column; gap: 7px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 4px 0 12px; font-size: 12px; color: var(--sub); }
+.lg-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lg-item b { color: var(--ink); min-width: 56px; }
+.lg-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 1.7; }
+.lg-bad, .st-broke, .st-dark { background: #e03131; color: #fff; }
+.lg-mid, .st-orange { background: #f59f00; color: #fff; }
+.lg-good, .st-green { background: #2f9e44; color: #fff; }
+.st-red { background: #f08c00; color: #fff; }
+.st-blue { background: #1971c2; color: #fff; }
+.st-gray { background: #adb5bd; color: #fff; }
+.mon-status-row { margin: 6px 0 4px; }
+.mon-status-tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; }
+.mon-status-tag.st-broke { background: #e03131; }
+.mon-status-tag.st-weak, .mon-status-tag.st-tested_weak { background: #f59f00; }
+.mon-status-tag.st-tested { background: #f08c00; }
+.mon-status-tag.st-target { background: #2f9e44; }
+.mon-status-tag.st-near { background: #1971c2; }
+.mon-status-tag.st-watch, .mon-status-tag.st-nodata { background: #adb5bd; }
+.market-banner { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .4px; }
+.market-banner::before { content: "大盘"; font-size: 11px; background: rgba(255,255,255,.22); padding: 3px 10px; border-radius: 999px; font-weight: 700; }
 .monitor-watch-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 8px 0 10px; }
 .monitor-watch-form label { font-size: 12px; color: var(--sub); display: flex; flex-direction: column; gap: 4px; }
 .monitor-watch-form input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; min-width: 140px; }

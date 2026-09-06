@@ -139,6 +139,25 @@
           <div class="actions"><button id="btnMonitorRefresh" class="ghost">立即刷新</button></div>
         </div>
         <div class="monitor-meta" id="monitorMeta"></div>
+        <div class="monitor-legend" id="monitorLegend">
+          <div class="lg-item lg-market"><b>大盘</b>
+            <span class="lg-chip lg-bad">不适合入场</span>
+            <span class="lg-chip lg-mid">观望为主</span>
+            <span class="lg-chip lg-good">适合入场</span>
+          </div>
+          <div class="lg-item"><b>卡片状态</b>
+            <span class="lg-chip st-red">触发候选</span>
+            <span class="lg-chip st-orange">结构未确认/等站回</span>
+            <span class="lg-chip st-green">触及目标</span>
+            <span class="lg-chip st-blue">接近支撑</span>
+            <span class="lg-chip st-gray">未到支撑</span>
+            <span class="lg-chip st-dark">破止损·放弃</span>
+          </div>
+          <div class="lg-item"><b>结构</b>
+            <span class="lg-chip st-green">✓ 价≥MA5+MACD不弱+K>D</span>
+            <span class="lg-chip st-orange">✗ 未确认</span>
+          </div>
+        </div>
         <div id="monitorRejected"></div>
         <div id="monitorBanner"></div>
         <div id="monitorList" class="monitor-grid"></div>

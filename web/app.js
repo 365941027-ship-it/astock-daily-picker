@@ -1061,6 +1061,7 @@ function monitorCard(i) {
       <div class="mon-price ${pctClass(i.pct_chg)}">${fmtNum(i.price)}</div>
     </div>
     <div class="mon-chg ${pctClass(i.pct_chg)}">${fmtPct(i.pct_chg)}</div>
+    <div class="mon-status-row"><span class="mon-status-tag st-${i.status}">${esc(sm[0])}</span></div>
     <div class="mon-levels">
       <span>支撑 <b>${fmtNum(i.support)}</b></span>
       <span>止损 <b class="down">${fmtNum(i.stop)}</b></span>

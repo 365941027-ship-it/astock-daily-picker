@@ -26,7 +26,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
 
 from daily_picker.config import Config  # noqa: E402
-from daily_picker.data_fetch import fetch_quotes_realtime  # noqa: E402
+from daily_picker.data_fetch import fetch_kline, fetch_quotes_realtime  # noqa: E402
 from daily_picker.indicators import analyze_bars, kdj_series, macd_series  # noqa: E402
 from daily_picker.risks import load_risk_cache  # noqa: E402
 from daily_picker.screening import Candidate, evaluate  # noqa: E402
@@ -41,6 +41,27 @@ CFG_PROXY = ""
 
 def _now() -> datetime:
     return datetime.now(CN_TZ)
+
+
+def ensure_kline(code: str, cfg, day: str = "") -> list | None:
+    """确保有该股票日K：已有缓存直接返回；否则联网拉取并写入缓存供后续复用。"""
+    bars = load_kline_bars(code)
+    if bars:
+        return bars
+    try:
+        bars = fetch_kline(code, cfg)
+    except Exception:
+        return None
+    if not bars:
+        return None
+    try:
+        cache_dir = os.path.join(BASE, "daily_picker", "cache", day.replace("-", "") if day else _now().strftime("%Y%m%d"))
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(os.path.join(cache_dir, f"kline_{code}.json"), "w", encoding="utf-8") as f:
+            json.dump(bars, f, ensure_ascii=False)
+    except Exception:
+        pass
+    return bars
 
 
 def latest_replay_and_verdict():
@@ -221,6 +242,9 @@ def snapshot(proxy: str = "") -> dict:
         watch_cards = build_watch_cards(watch_items, cfg, verdict, params={"target_pct": 0.08, "skip_weak": True})
         seen = {c["code"] for c in cards}
         cards = cards + [c for c in watch_cards if c["code"] not in seen]
+    # 自选/候选都可能缺日K：确保有缓存，结构确认与资格判定才能算
+    for c in cards:
+        ensure_kline(c["code"], cfg, day=day)
     risk_map = load_risk_cache()
     # 排雷一票否决剔除；只盯 priority+strong（弱市禁买仍显示“纪律禁买”供观察）
     rejected = []
@@ -252,13 +276,14 @@ def snapshot(proxy: str = "") -> dict:
                 status = "tested_weak"
                 note += f" · 未完全满足系统选股规则（{'；'.join(eligible_reasons[:2]) or '见规则'}），继续观察"
         struct = None
-        if status == "tested":
+        # 活跃卡片（未破止损/非无数据）都给出结构确认，触发时作为资格门槛
+        if status not in ("broke", "nodata"):
             struct = compute_structure(c["code"], q, in_session)
-            if struct and not struct["ok"]:
+            if status == "tested" and struct and not struct["ok"]:
                 status = "tested_weak"
                 note = (f"回踩支撑 {c['support']:.2f} 后站回，但结构未确认（"
                         f"{'；'.join(struct['reasons'][:2]) or '数据不足'}），继续观察")
-            elif struct and struct["ok"]:
+            elif status == "tested" and struct and struct["ok"]:
                 note += " · 结构确认（价≥MA5 / MACD未走弱 / K>D）"
         items.append({
             "code": c["code"],
