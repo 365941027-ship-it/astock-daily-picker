@@ -77,13 +77,13 @@ def _copy_static_assets() -> None:
     with open(os.path.join(WEB_DIR, "index.html"), "r", encoding="utf-8") as f:
         html = f.read()
     # 更新缓存版本号，避免 GitHub Pages 上的浏览器继续用旧 JS/CSS
-    html = html.replace('style.css?v=13', 'style.css?v=15')
-    html = html.replace('app.js?v=13', 'app.js?v=15')
+    html = html.replace('style.css?v=13', 'style.css?v=16')
+    html = html.replace('app.js?v=13', 'app.js?v=16')
     # 在 app.js 引入前注入静态模式标记
     if "window.STATIC_MODE" not in html:
         html = html.replace(
-            '  <script src="app.js?v=15"></script>',
-            '  <script>window.STATIC_MODE = true;</script>\n  <script src="app.js?v=15"></script>',
+            '  <script src="app.js?v=16"></script>',
+            '  <script>window.STATIC_MODE = true;</script>\n  <script src="app.js?v=16"></script>',
             1,
         )
     with open(os.path.join(SITE_DIR, "index.html"), "w", encoding="utf-8") as f:

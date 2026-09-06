@@ -32,6 +32,7 @@
       </div>
       <nav class="nav" id="mainNav">
         <a class="nav-item active" data-section="pick">选股</a>
+        <a class="nav-item" data-section="monitor">盘中盯盘</a>
         <a class="nav-item" data-section="replay">历史复盘</a>
         <a class="nav-item" data-section="verify">预判核对</a>
         <a class="nav-item" data-section="signal">缠论研判</a>
@@ -126,6 +127,18 @@
       </section>
 
       <!-- 历史复盘 -->
+      <section class="section" id="sec-monitor">
+        <div class="card">
+          <div class="card-title">盘中盯盘 <span class="meta">交易日自动每30秒生成快照，页面约10秒刷新一次</span></div>
+          <div class="actions">
+            <button id="btnMonitorRefresh" class="ghost">立即刷新</button>
+          </div>
+        </div>
+        <div class="monitor-meta" id="monitorMeta"></div>
+        <div id="monitorBanner"></div>
+        <div id="monitorList" class="monitor-grid"></div>
+      </section>
+
       <section class="section" id="sec-replay">
         <div class="card">
           <div class="card-title">历史回放</div>

@@ -415,3 +415,29 @@ td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: t
 .disclaimer { margin: 10px 0 0; color: #e8590c; font-weight: 600; }
 .side-link { display: block; font-size: 12px; color: #2563eb; text-decoration: none; margin: 8px 0 4px; }
 .side-link:hover { text-decoration: underline; }
+
+/* ---------- 盘中盯盘板块 ---------- */
+.monitor-meta { font-size: 12px; color: var(--sub); margin: 10px 0 10px; }
+.monitor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.monitor-card { background: #fff; border: 1px solid var(--line); border-left: 5px solid #adb5bd; border-radius: 12px; padding: 12px 14px; }
+.monitor-card.mon-broke { border-left-color: #e03131; background: #fff5f5; }
+.monitor-card.mon-weak { border-left-color: #e8590c; background: #fff9ec; }
+.monitor-card.mon-tested { border-left-color: #f08c00; background: #fffbe6; }
+.monitor-card.mon-near { border-left-color: #1971c2; }
+.monitor-card.mon-target { border-left-color: #2f9e44; background: #f4fbf6; }
+.mon-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.mon-head b { font-size: 15px; }
+.mon-price { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mon-chg { font-size: 12px; font-weight: 600; margin: 2px 0 8px; }
+.mon-levels { display: flex; gap: 12px; font-size: 11px; color: var(--sub); margin-bottom: 8px; }
+.mon-levels b { color: var(--ink); font-size: 13px; margin-left: 2px; font-variant-numeric: tabular-nums; }
+.mon-levels .up { color: var(--red); }
+.mon-levels .down { color: var(--green); }
+.mon-note { font-size: 12px; line-height: 1.6; background: #fafbfd; border-radius: 8px; padding: 7px 9px; color: #3d4754; }
+.mon-struct { font-size: 11px; margin-top: 6px; padding: 5px 8px; border-radius: 6px; }
+.mon-struct.ok { color: #2b8a3e; background: #ebfbee; }
+.mon-struct.bad { color: #c92a2a; background: #fff0f0; }
+.market-banner { border-radius: 12px; padding: 11px 16px; color: #fff; font-size: 14px; margin-bottom: 12px; }
+.market-banner.bad { background: linear-gradient(135deg, #e03131, #c92a2a); }
+.market-banner.mid { background: linear-gradient(135deg, #1c7ed6, #1971c2); }
+.market-banner.good { background: linear-gradient(135deg, #e8590c, #f08c00); }

@@ -359,7 +359,7 @@ async function init() {
   if (STATIC) {
     document.body.classList.add("static-mode");
     // 隐藏“运行类”操作（选股/回放/核对/刷新按钮），页面保持只读预览
-    ["btnRun", "btnReset", "btnReplay", "btnVerify", "btnVerifyAll", "btnSignal", "btnNews", "btnSectors"]
+    ["btnRun", "btnReset", "btnReplay", "btnVerify", "btnVerifyAll", "btnSignal", "btnNews", "btnSectors", "btnMonitorRefresh"]
       .forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
     ["#sec-pick", "#sec-replay", "#sec-verify"].forEach((sel) => {
       const card = document.querySelector(`${sel} .card`);
@@ -411,6 +411,8 @@ async function init() {
   loadSignal();
   loadNews();
   loadSectors();
+  loadMonitor();
+  if (!STATIC) setInterval(loadMonitor, 10000);
   if (STATIC) {
     fetchWithTimeout("data/risks.json").then((r) => r.json()).then((m) => { state.risks = m || {}; }).catch(() => {});
     fetchWithTimeout("data/latest.json").then((r) => r.json()).then((r) => {
@@ -1016,6 +1018,82 @@ async function loadSectors() {
   }
 }
 
+/* ---------- 盘中盯盘（主页板块） ---------- */
+const MON_STATUS = {
+  broke: ["已破止损 · 放弃", "mon-broke"],
+  weak: ["跌破支撑 · 等站回", "mon-weak"],
+  tested_weak: ["回踩站回 · 结构未确认", "mon-weak"],
+  tested: ["回踩站回 · 触发候选", "mon-tested"],
+  target: ["触及目标 · 可落袋", "mon-target"],
+  near: ["接近支撑", "mon-near"],
+  watch: ["未到支撑 · 观察", ""],
+  nodata: ["暂无行情", ""],
+};
+
+function monitorCard(i) {
+  const sm = MON_STATUS[i.status] || MON_STATUS.watch;
+  const riskTags = (i.risks || []).slice(0, 2).map((r) =>
+    `<span class="risk-badge" title="${esc(r)}">提示 ${esc(r)}</span>`).join("");
+  const structHtml = i.struct
+    ? (i.struct.ok
+      ? `<div class="mon-struct ok">✓ 结构确认：MA5 ${fmtNum(i.struct.ma5)} · MACD ${fmtNum(i.struct.dif)}/${fmtNum(i.struct.dea)} · K${fmtNum(i.struct.k)}&gt;D${fmtNum(i.struct.d)}</div>`
+      : `<div class="mon-struct bad">✗ 结构未确认：${esc((i.struct.reasons || []).slice(0, 2).join("；"))}</div>`)
+    : "";
+  return `<div class="monitor-card ${sm[1]}">
+    <div class="mon-head">
+      <div>
+        <b>${esc(i.name)}</b> <span class="sub">${esc(i.code)}</span>
+        ${i.source === "watch" ? `<span class="risk-badge" style="background:#fff3bf">⭐自选</span>` : ""}
+      </div>
+      <div class="mon-price ${pctClass(i.pct_chg)}">${fmtNum(i.price)}</div>
+    </div>
+    <div class="mon-chg ${pctClass(i.pct_chg)}">${fmtPct(i.pct_chg)}</div>
+    <div class="mon-levels">
+      <span>支撑 <b>${fmtNum(i.support)}</b></span>
+      <span>止损 <b class="down">${fmtNum(i.stop)}</b></span>
+      <span>目标 <b class="up">${fmtNum(i.target)}</b></span>
+    </div>
+    <div class="mon-note">${esc(i.note)}${riskTags}</div>
+    ${structHtml}
+  </div>`;
+}
+
+async function loadMonitor() {
+  const list = $("#monitorList");
+  const meta = $("#monitorMeta");
+  const banner = $("#monitorBanner");
+  if (!list) return;
+  if (STATIC) {
+    list.innerHTML = `<div class="empty">GitHub 静态预览不含实时行情。请访问部署服务器或本机服务查看实时盯盘。</div>`;
+    if (meta) meta.innerHTML = "盘中盯盘：静态版不可用";
+    if (banner) banner.innerHTML = "";
+    return;
+  }
+  try {
+    const d = await fetchWithTimeout("/api/intraday", 6000).then((r) => r.json());
+    if (!d || !d.ok) throw new Error((d && d.error) || "无盯盘快照");
+    if (meta) {
+      meta.innerHTML = `数据日 <b>${esc(d.data_date || "")}</b> · 更新 ${esc((d.generated_at || "").replace("T", " ").slice(5, 16))} · 共 ${(d.items || []).length} 只 · ${d.in_session ? "盯盘中" : "非交易时段（最近收盘快照）"}`;
+    }
+    const v = d.market_verdict || "";
+    if (banner) {
+      if (v === "不适合入场") banner.innerHTML = `<div class="market-banner bad">今日大盘不适合入场 · 只做空仓观察，触发也按纪律等待转强</div>`;
+      else if (v === "观望为主") banner.innerHTML = `<div class="market-banner mid">今日大盘观望为主 · 轻仓试错，单票≤5%</div>`;
+      else if (v) banner.innerHTML = `<div class="market-banner good">今日大盘适合入场 · 优选回踩不破品种</div>`;
+      else banner.innerHTML = "";
+    }
+    if (!d.items || !d.items.length) {
+      list.innerHTML = `<div class="empty">当前无候选可盯（弱市空仓或数据未生成）。</div>`;
+      return;
+    }
+    list.innerHTML = d.items.map(monitorCard).join("");
+  } catch (e) {
+    list.innerHTML = `<div class="empty">无法读取盯盘状态：${esc(e.message || e)}。请确认本机/服务器盯盘脚本已运行（交易日自动启动）。</div>`;
+    if (meta) meta.innerHTML = "";
+    if (banner) banner.innerHTML = "";
+  }
+}
+
 /* ---------- 个股详情 + K线 ---------- */
 async function openModal(code, date, name) {
   state.modal = { code, date, name, klt: 101, chan: null };
@@ -1227,6 +1305,7 @@ $("#btnVerifyAll").onclick = startVerifyAll;
 $("#btnSignal").onclick = loadSignal;
 $("#btnNews").onclick = loadNews;
 $("#btnSectors").onclick = loadSectors;
+$("#btnMonitorRefresh").onclick = loadMonitor;
 $("#btnReset").onclick = () => { try { localStorage.removeItem(LS_KEY); } catch (e) {} location.reload(); };
 $("#btnMd").onclick = () => download("md");
 $("#btnDocx").onclick = () => download("docx");
