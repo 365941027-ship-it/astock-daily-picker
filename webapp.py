@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import threading
 import traceback
@@ -28,6 +29,7 @@ from daily_picker.data_fetch import (  # noqa: E402
     DataCache,
     channel_name,
     fetch_kline,
+    fetch_quotes_realtime,
     fetch_sectors,
     get_indices,
     get_klines,
@@ -101,6 +103,28 @@ def ind_json(ind: Dict) -> Dict:
         "dif", "dea", "hist", "k", "d", "j",
     ]
     return {k: _f(ind.get(k), 3) for k in keys}
+
+
+_watch_rebuild_lock = threading.Lock()
+_watch_last_rebuild = 0.0
+
+
+def _rebuild_intraday_snapshot() -> None:
+    """自选变更后后台重建一次盯盘快照（带节流，避免频繁重建）。"""
+    global _watch_last_rebuild
+    with _watch_rebuild_lock:
+        import time as _time
+        now = _time.time()
+        if now - _watch_last_rebuild < 20:
+            return
+        _watch_last_rebuild = now
+    try:
+        subprocess.run(
+            [sys.executable, os.path.join(BASE, "scripts", "intraday_monitor.py"), "--force"],
+            cwd=BASE, timeout=180,
+        )
+    except Exception:
+        pass
 
 
 class Job:
@@ -819,7 +843,9 @@ class Handler(BaseHTTPRequestHandler):
             action = (q.get("action") or [""])[0]
             code = (q.get("code") or [""])[0]
             if action == "remove" and code:
-                self._send_json(remove_watch(code))
+                res = remove_watch(code)
+                threading.Thread(target=_rebuild_intraday_snapshot, daemon=True).start()
+                self._send_json(res)
             else:
                 self._send_json({"error": "参数错误"}, 400)
         elif path == "/api/replay":
@@ -876,17 +902,28 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=verify_pipeline, args=(params,), daemon=True).start()
         elif parsed.path == "/api/watchlist":
             code = str(params.get("code") or "").zfill(6)
-            name = str(params.get("name") or "")
+            name = str(params.get("name") or "").strip()
             alert_price = params.get("alert_price")
             alert_type = str(params.get("alert_type") or "below")
-            if not code or not name:
-                self._send_json({"error": "缺少代码或名称"}, 400)
+            if not code or not code.isdigit() or len(code) != 6:
+                self._send_json({"error": "请输入 6 位股票代码"}, 400)
                 return
-            self._send_json(add_watch(
+            # 名称未填时自动补全（盯盘板块常只输入代码）
+            if not name:
+                try:
+                    q = fetch_quotes_realtime([code], Config())
+                    if q.get(code):
+                        name = q[code].get("name") or code
+                except Exception:
+                    pass
+            name = name or code
+            res = add_watch(
                 code, name,
                 float(alert_price) if alert_price else None,
                 alert_type,
-            ))
+            )
+            threading.Thread(target=_rebuild_intraday_snapshot, daemon=True).start()
+            self._send_json(res)
         elif parsed.path == "/api/trade":
             code = str(params.get("code") or "").zfill(6)
             name = str(params.get("name") or "")

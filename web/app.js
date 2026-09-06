@@ -412,6 +412,7 @@ async function init() {
   loadNews();
   loadSectors();
   loadMonitor();
+  renderMonWatch();
   if (!STATIC) setInterval(loadMonitor, 10000);
   if (STATIC) {
     fetchWithTimeout("data/risks.json").then((r) => r.json()).then((m) => { state.risks = m || {}; }).catch(() => {});
@@ -1043,7 +1044,9 @@ function monitorCard(i) {
     <div class="mon-head">
       <div>
         <b>${esc(i.name)}</b> <span class="sub">${esc(i.code)}</span>
-        ${i.source === "watch" ? `<span class="risk-badge" style="background:#fff3bf">⭐自选</span>` : ""}
+        ${i.source === "watch"
+          ? `<span class="mon-src src-watch">⭐ 用户自选</span>`
+          : `<span class="mon-src src-sys">系统推荐</span>`}
       </div>
       <div class="mon-price ${pctClass(i.pct_chg)}">${fmtNum(i.price)}</div>
     </div>
@@ -1056,6 +1059,40 @@ function monitorCard(i) {
     <div class="mon-note">${esc(i.note)}${riskTags}</div>
     ${structHtml}
   </div>`;
+}
+
+async function renderMonWatch() {
+  const box = $("#monWatchList");
+  if (!box) return;
+  if (STATIC) {
+    box.innerHTML = `<div class="empty" style="font-size:12px;padding:8px">静态预览版不支持添加自选，请访问部署服务器。</div>`;
+    return;
+  }
+  try {
+    const ud = await fetchWithTimeout("/api/userdata").then((r) => r.json());
+    const list = ud.watchlist || [];
+    if (!list.length) {
+      box.innerHTML = `<span class="mon-hint">还没有自选盯盘股票。输入代码加入后，将按同一套支撑/止损/止盈规则实时监测。</span>`;
+      return;
+    }
+    box.innerHTML =
+      `<span class="mon-hint">自选盯盘（${list.length}）：</span>` +
+      list.map((w) =>
+        `<span class="mon-watch-chip">${esc(w.name)} ${esc(w.code)}
+           <a class="mon-watch-del" data-code="${esc(w.code)}" title="移除">×</a></span>`
+      ).join("");
+    box.querySelectorAll(".mon-watch-del").forEach((el) => {
+      el.onclick = async (e) => {
+        e.preventDefault();
+        await fetchWithTimeout(`/api/watchlist?action=remove&code=${encodeURIComponent(el.dataset.code)}`).then((r) => r.json());
+        renderMonWatch();
+        loadWatchlist();
+        loadMonitor();
+      };
+    });
+  } catch (e) {
+    box.innerHTML = `<span class="mon-hint">自选加载失败：${esc(e.message || e)}</span>`;
+  }
 }
 
 async function loadMonitor() {
@@ -1093,6 +1130,23 @@ async function loadMonitor() {
     if (banner) banner.innerHTML = "";
   }
 }
+
+$("#btnMonAdd").onclick = async () => {
+  if (STATIC) { alert("静态预览版不支持添加自选，请访问部署服务器。"); return; }
+  const code = $("#monCode").value.trim();
+  const name = $("#monName").value.trim();
+  if (!/^\d{6}$/.test(code)) { alert("请输入 6 位数字股票代码，如 600519"); return; }
+  const res = await fetchWithTimeout("/api/watchlist", 8000, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, name: name || undefined }),
+  }).then((r) => r.json());
+  if (res.error) { alert(res.error); return; }
+  $("#monCode").value = ""; $("#monName").value = "";
+  renderMonWatch();
+  loadWatchlist();
+  loadMonitor();
+};
 
 /* ---------- 个股详情 + K线 ---------- */
 async function openModal(code, date, name) {

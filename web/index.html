@@ -129,10 +129,14 @@
       <!-- 历史复盘 -->
       <section class="section" id="sec-monitor">
         <div class="card">
-          <div class="card-title">盘中盯盘 <span class="meta">交易日自动每30秒生成快照，页面约10秒刷新一次</span></div>
-          <div class="actions">
-            <button id="btnMonitorRefresh" class="ghost">立即刷新</button>
+          <div class="card-title">盘中盯盘 <span class="meta">系统候选 + 你的自选，同一套规则实时监测</span></div>
+          <div class="monitor-watch-form">
+            <label>自选代码 <input type="text" id="monCode" maxlength="6" placeholder="6位代码，如 600519" inputmode="numeric"></label>
+            <label>名称（可选） <input type="text" id="monName" maxlength="10" placeholder="留空自动补全"></label>
+            <button id="btnMonAdd" class="primary">＋ 加入盯盘</button>
           </div>
+          <div id="monWatchList" class="monitor-watch-list"></div>
+          <div class="actions"><button id="btnMonitorRefresh" class="ghost">立即刷新</button></div>
         </div>
         <div class="monitor-meta" id="monitorMeta"></div>
         <div id="monitorBanner"></div>
