@@ -53,6 +53,7 @@ from daily_picker.market_signal import INDEX_INFO, index_signal_series  # noqa: 
 from daily_picker.news import fetch_news, news_summary  # noqa: E402
 from daily_picker.risks import (  # noqa: E402
     fetch_risk_map,
+    save_risk_cache,
     risk_verdict,
     risk_warnings,
 )
@@ -290,6 +291,7 @@ def run_pipeline(params: Dict):
                 cand_codes = [c.code for c in result["priority"] + result["strong"]]
                 if cand_codes:
                     risk_map = fetch_risk_map(cand_codes, cfg)
+                    save_risk_cache(risk_map)  # 落盘供盯盘卡片/前端读取
                     for bucket in ("priority", "strong"):
                         kept: List[Candidate] = []
                         for c in result[bucket]:

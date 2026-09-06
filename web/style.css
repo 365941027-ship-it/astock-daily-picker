@@ -444,6 +444,10 @@ td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: t
 .mon-src { font-size: 10px; padding: 1px 8px; border-radius: 999px; margin-left: 4px; font-weight: 600; }
 .mon-src.src-watch { background: #fff3bf; color: #b08900; }
 .mon-src.src-sys { background: #e7f5ff; color: #1971c2; }
+.mon-elig { font-size: 10px; padding: 1px 7px; border-radius: 6px; margin-left: 4px; font-weight: 600; }
+.mon-elig.ok { background: #ebfbee; color: #2b8a3e; }
+.mon-elig.bad { background: #fff0f0; color: #c92a2a; }
+.monitor-rejected { background: #fff0f0; border: 1px solid #ffc9c9; color: #c92a2a; border-radius: 10px; padding: 9px 13px; font-size: 12px; margin-bottom: 12px; }
 .monitor-watch-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 8px 0 10px; }
 .monitor-watch-form label { font-size: 12px; color: var(--sub); display: flex; flex-direction: column; gap: 4px; }
 .monitor-watch-form input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; min-width: 140px; }

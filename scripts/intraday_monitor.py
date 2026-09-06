@@ -27,8 +27,9 @@ sys.path.insert(0, BASE)
 
 from daily_picker.config import Config  # noqa: E402
 from daily_picker.data_fetch import fetch_quotes_realtime  # noqa: E402
-from daily_picker.indicators import kdj_series, macd_series  # noqa: E402
+from daily_picker.indicators import analyze_bars, kdj_series, macd_series  # noqa: E402
 from daily_picker.risks import load_risk_cache  # noqa: E402
+from daily_picker.screening import Candidate, evaluate  # noqa: E402
 from daily_picker.strategy import build_cards, build_watch_cards, load_kline_bars  # noqa: E402
 from daily_picker.userdata import load as load_userdata  # noqa: E402
 
@@ -102,6 +103,33 @@ def classify(price, low, high, card) -> tuple[str, str]:
     if dist <= 1.5:
         return "near", f"接近支撑 {support:.2f}（现价 {price:.2f}，距支撑 {dist:.1f}%）"
     return "watch", f"未到支撑，现价 {price:.2f}（距支撑 {dist:.1f}%）"
+
+
+def check_eligible(code: str, quote: dict, cfg) -> tuple[bool, list[str]]:
+    """对自选股按系统候选硬规则做资格判定（日线结构 + 实时涨跌）。
+
+    数据不足时保守返回 True（不误伤，由结构确认单独把关）。
+    """
+    bars = load_kline_bars(code)
+    if not bars:
+        return True, []
+    last = bars[-1]
+    ind = analyze_bars(bars, cfg)
+    if not ind:
+        return True, []
+    close = quote.get("price") if quote.get("price") is not None else last["close"]
+    pct = quote.get("pct_chg")
+    if pct is None and len(bars) >= 2 and last["close"]:
+        pct = (last["close"] / bars[-2]["close"] - 1.0) * 100.0
+    row = {
+        "f2": close,
+        "f3": pct,
+        "f6": quote.get("amount") or last.get("amount") or 0,
+        "f8": None,
+    }
+    cand = Candidate(code=code, name="", snapshot=row, ind=ind)
+    ok, reasons = evaluate(cand, cfg)
+    return ok, reasons[:3]
 
 
 def compute_structure(code: str, quote: dict, in_session: bool) -> dict | None:
@@ -195,7 +223,18 @@ def snapshot(proxy: str = "") -> dict:
         cards = cards + [c for c in watch_cards if c["code"] not in seen]
     risk_map = load_risk_cache()
     # 排雷一票否决剔除；只盯 priority+strong（弱市禁买仍显示“纪律禁买”供观察）
-    watch = [c for c in cards if not c.get("vetoed")]
+    rejected = []
+    watch = []
+    for c in cards:
+        if c.get("vetoed"):
+            rejected.append({
+                "code": c["code"],
+                "name": c["name"],
+                "source": "system" if c.get("category") != "自选盯盘" else "watch",
+                "reasons": c.get("vetoed", []),
+            })
+        else:
+            watch.append(c)
     codes = [c["code"] for c in watch]
     quotes = fetch_quotes_realtime(codes, cfg) if codes else {}
     in_session = _in_session(False)
@@ -204,6 +243,14 @@ def snapshot(proxy: str = "") -> dict:
         q = quotes.get(c["code"], {})
         price = q.get("price")
         status, note = classify(price, q.get("low"), q.get("high"), c)
+        is_watch = c.get("category") == "自选盯盘"
+        eligible = True
+        eligible_reasons: list[str] = []
+        if is_watch:
+            eligible, eligible_reasons = check_eligible(c["code"], q, cfg)
+            if not eligible and status == "tested":
+                status = "tested_weak"
+                note += f" · 未完全满足系统选股规则（{'；'.join(eligible_reasons[:2]) or '见规则'}），继续观察"
         struct = None
         if status == "tested":
             struct = compute_structure(c["code"], q, in_session)
@@ -216,7 +263,9 @@ def snapshot(proxy: str = "") -> dict:
         items.append({
             "code": c["code"],
             "name": c["name"],
-            "source": "system" if c.get("category") != "自选盯盘" else "watch",
+            "source": "system" if not is_watch else "watch",
+            "eligible": eligible,
+            "eligible_reasons": eligible_reasons,
             "category": c.get("category", ""),
             "structure": c.get("structure", ""),
             "verdict_note": c.get("position", ""),
@@ -242,6 +291,7 @@ def snapshot(proxy: str = "") -> dict:
         "market_verdict": verdict,
         "in_session": in_session,
         "items": items,
+        "rejected": rejected,
     }
 
 

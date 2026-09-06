@@ -1033,8 +1033,17 @@ const MON_STATUS = {
 
 function monitorCard(i) {
   const sm = MON_STATUS[i.status] || MON_STATUS.watch;
-  const riskTags = (i.risks || []).slice(0, 2).map((r) =>
-    `<span class="risk-badge" title="${esc(r)}">提示 ${esc(r)}</span>`).join("");
+  const riskTags = (i.risks || []).slice(0, 2).map((r) => {
+    const veto = String(r).includes("否决") || String(r).includes("拟减持") ||
+      String(r).includes("立案") || String(r).includes("预亏") ||
+      String(r).includes("退市") || String(r).includes("商誉") || String(r).includes("处罚");
+    return `<span class="risk-badge ${veto ? "risk-veto" : ""}" title="${esc(r)}">${veto ? "排雷" : "提示"} ${esc(r)}</span>`;
+  }).join("");
+  const eligHtml = i.source === "watch"
+    ? (i.eligible
+      ? `<span class="mon-elig ok" title="满足系统候选规则">符合规则</span>`
+      : `<span class="mon-elig bad" title="${esc((i.eligible_reasons || []).join("；"))}">规则未全满足</span>`)
+    : `<span class="mon-elig ok" title="已通过选股与排雷">系统已筛</span>`;
   const structHtml = i.struct
     ? (i.struct.ok
       ? `<div class="mon-struct ok">✓ 结构确认：MA5 ${fmtNum(i.struct.ma5)} · MACD ${fmtNum(i.struct.dif)}/${fmtNum(i.struct.dea)} · K${fmtNum(i.struct.k)}&gt;D${fmtNum(i.struct.d)}</div>`
@@ -1047,6 +1056,7 @@ function monitorCard(i) {
         ${i.source === "watch"
           ? `<span class="mon-src src-watch">⭐ 用户自选</span>`
           : `<span class="mon-src src-sys">系统推荐</span>`}
+        ${eligHtml}
       </div>
       <div class="mon-price ${pctClass(i.pct_chg)}">${fmtNum(i.price)}</div>
     </div>
@@ -1099,11 +1109,13 @@ async function loadMonitor() {
   const list = $("#monitorList");
   const meta = $("#monitorMeta");
   const banner = $("#monitorBanner");
+  const rejectedBox = $("#monitorRejected");
   if (!list) return;
   if (STATIC) {
     list.innerHTML = `<div class="empty">GitHub 静态预览不含实时行情。请访问部署服务器或本机服务查看实时盯盘。</div>`;
     if (meta) meta.innerHTML = "盘中盯盘：静态版不可用";
     if (banner) banner.innerHTML = "";
+    if (rejectedBox) rejectedBox.innerHTML = "";
     return;
   }
   try {
@@ -1119,6 +1131,13 @@ async function loadMonitor() {
       else if (v) banner.innerHTML = `<div class="market-banner good">今日大盘适合入场 · 优选回踩不破品种</div>`;
       else banner.innerHTML = "";
     }
+    if (rejectedBox) {
+      const rej = d.rejected || [];
+      rejectedBox.innerHTML = rej.length
+        ? `<div class="monitor-rejected">🔴 排雷剔除（不参与盯盘）：${rej.map((r) =>
+            `${esc(r.name)} ${esc(r.code)}（${esc((r.reasons || []).join("；"))}）`).join("；")}</div>`
+        : "";
+    }
     if (!d.items || !d.items.length) {
       list.innerHTML = `<div class="empty">当前无候选可盯（弱市空仓或数据未生成）。</div>`;
       return;
@@ -1128,6 +1147,7 @@ async function loadMonitor() {
     list.innerHTML = `<div class="empty">无法读取盯盘状态：${esc(e.message || e)}。请确认本机/服务器盯盘脚本已运行（交易日自动启动）。</div>`;
     if (meta) meta.innerHTML = "";
     if (banner) banner.innerHTML = "";
+    if (rejectedBox) rejectedBox.innerHTML = "";
   }
 }
 
