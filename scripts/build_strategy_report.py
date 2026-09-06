@@ -413,6 +413,8 @@ if(DATA.cards.length){
 def main() -> int:
     parser = argparse.ArgumentParser(description="生成策略回测报告")
     parser.add_argument("--proxy", default="", help="行情代理")
+    parser.add_argument("--out-dir", default=None,
+                        help="输出目录（默认写 site/ 与 web/ 两份），可只写一份")
     args = parser.parse_args()
 
     cfg = Config()
@@ -539,11 +541,19 @@ def main() -> int:
         .replace("__CARD_DATE__", card_date)
         .replace("__DATA__", json.dumps(data, ensure_ascii=False))
     )
-    out = os.path.join(BASE, "site", "strategy.html")
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
-    print(f"报告已生成：{out}")
+    targets = []
+    if args.out_dir:
+        targets = [os.path.join(BASE, args.out_dir, "strategy.html")]
+    else:
+        targets = [
+            os.path.join(BASE, "site", "strategy.html"),
+            os.path.join(BASE, "web", "strategy.html"),
+        ]
+    for out in targets:
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"报告已生成：{out}")
     return 0
 
 

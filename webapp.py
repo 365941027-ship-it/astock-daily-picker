@@ -768,6 +768,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_static("index.html", "text/html; charset=utf-8")
         elif path == "/intraday":
             self._send_static("intraday.html", "text/html; charset=utf-8")
+        elif path == "/strategy":
+            self._send_static("strategy.html", "text/html; charset=utf-8")
         elif path == "/app.js":
             self._send_static("app.js", "text/javascript; charset=utf-8")
         elif path == "/style.css":
