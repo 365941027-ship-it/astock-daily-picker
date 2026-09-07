@@ -19,6 +19,9 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - ASTOCK_PUSH_WEBHOOK=${ASTOCK_PUSH_WEBHOOK:-}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_AUTH_CODE=${SMTP_AUTH_CODE:-}
+      - ALERT_EMAIL=${ALERT_EMAIL:-}
     command: ["python", "webapp.py", "--host", "0.0.0.0", "--port", "8235"]
 
   monitor:
@@ -30,6 +33,9 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - ASTOCK_PUSH_WEBHOOK=${ASTOCK_PUSH_WEBHOOK:-}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_AUTH_CODE=${SMTP_AUTH_CODE:-}
+      - ALERT_EMAIL=${ALERT_EMAIL:-}
     command: ["python", "scripts/intraday_monitor.py", "--watch", "--interval", "10"]
 
 volumes:

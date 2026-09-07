@@ -333,14 +333,37 @@ def changed_events(prev: dict | None, cur: dict) -> list[dict]:
 
 
 def send_notify(text: str, date_str: str) -> None:
-    script = os.path.join(BASE, "scripts", "send_push.py")
-    cmd = [PY, script, "--date", date_str, "--text", text]
+    """状态变化通知：优先 webhook（send_push），否则尝试邮件（send_alert_email）。"""
+    email_to = os.environ.get("ALERT_EMAIL", "").strip()
+    if not os.environ.get("ASTOCK_PUSH_WEBHOOK", "").strip() and not (
+        os.environ.get("SMTP_USER") and os.environ.get("SMTP_AUTH_CODE") and email_to
+    ):
+        return  # 未配置任何通道，静默跳过
+    subject = f"盯盘提醒 {date_str}"
+    # 用 webhook 推送
+    push_script = os.path.join(BASE, "scripts", "send_push.py")
+    cmd = [PY, push_script, "--date", date_str, "--text", text]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        if r.stdout.strip():
-            print(r.stdout.strip())
+        out = (r.stdout or "").strip() + (r.stderr or "").strip()
+        if out:
+            print(out)
     except Exception as exc:  # noqa: BLE001
         print(f"[盯盘] 推送调用异常：{exc}")
+    # 邮件通道（若配了 SMTP）
+    if email_to and os.environ.get("SMTP_USER") and os.environ.get("SMTP_AUTH_CODE"):
+        mail_script = os.path.join(BASE, "scripts", "send_alert_email.py")
+        try:
+            mr = subprocess.run(
+                [PY, mail_script, "--to", email_to, "--subject", subject, "--body", text],
+                capture_output=True, text=True, timeout=60,
+            )
+            if mr.stdout.strip():
+                print(mr.stdout.strip())
+            if mr.stderr.strip():
+                print(mr.stderr.strip())
+        except Exception as exc:  # noqa: BLE001
+            print(f"[盯盘] 邮件发送异常：{exc}")
 
 
 def load_status() -> dict | None:
