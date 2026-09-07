@@ -18,6 +18,7 @@ services:
       - ashare_data:/app/daily_picker/cache
     environment:
       - TZ=Asia/Shanghai
+      - ASTOCK_PUSH_WEBHOOK=${ASTOCK_PUSH_WEBHOOK:-}
     command: ["python", "webapp.py", "--host", "0.0.0.0", "--port", "8235"]
 
   monitor:
@@ -28,7 +29,8 @@ services:
       - ashare_data:/app/daily_picker/cache
     environment:
       - TZ=Asia/Shanghai
-    command: ["python", "scripts/intraday_monitor.py", "--watch"]
+      - ASTOCK_PUSH_WEBHOOK=${ASTOCK_PUSH_WEBHOOK:-}
+    command: ["python", "scripts/intraday_monitor.py", "--watch", "--interval", "10"]
 
 volumes:
   ashare_data:
