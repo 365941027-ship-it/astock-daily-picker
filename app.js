@@ -359,7 +359,7 @@ async function init() {
   if (STATIC) {
     document.body.classList.add("static-mode");
     // 隐藏“运行类”操作（选股/回放/核对/刷新按钮），页面保持只读预览
-    ["btnRun", "btnReset", "btnReplay", "btnVerify", "btnVerifyAll", "btnSignal", "btnNews", "btnSectors"]
+    ["btnRun", "btnReset", "btnReplay", "btnVerify", "btnVerifyAll", "btnSignal", "btnNews", "btnSectors", "btnMonitorRefresh"]
       .forEach((id) => { const el = document.getElementById(id); if (el) el.hidden = true; });
     ["#sec-pick", "#sec-replay", "#sec-verify"].forEach((sel) => {
       const card = document.querySelector(`${sel} .card`);
@@ -411,6 +411,9 @@ async function init() {
   loadSignal();
   loadNews();
   loadSectors();
+  loadMonitor();
+  renderMonWatch();
+  if (!STATIC) setInterval(loadMonitor, 10000);
   if (STATIC) {
     fetchWithTimeout("data/risks.json").then((r) => r.json()).then((m) => { state.risks = m || {}; }).catch(() => {});
     fetchWithTimeout("data/latest.json").then((r) => r.json()).then((r) => {
@@ -1016,6 +1019,156 @@ async function loadSectors() {
   }
 }
 
+/* ---------- 盘中盯盘（主页板块） ---------- */
+const MON_STATUS = {
+  broke: ["已破止损 · 放弃", "mon-broke"],
+  weak: ["跌破支撑 · 等站回", "mon-weak"],
+  tested_weak: ["回踩站回 · 结构未确认", "mon-weak"],
+  tested: ["回踩站回 · 触发候选", "mon-tested"],
+  target: ["触及目标 · 可落袋", "mon-target"],
+  near: ["接近支撑", "mon-near"],
+  watch: ["未到支撑 · 观察", ""],
+  nodata: ["暂无行情", ""],
+};
+
+function monitorCard(i) {
+  const sm = MON_STATUS[i.status] || MON_STATUS.watch;
+  const riskTags = (i.risks || []).slice(0, 2).map((r) => {
+    const veto = String(r).includes("否决") || String(r).includes("拟减持") ||
+      String(r).includes("立案") || String(r).includes("预亏") ||
+      String(r).includes("退市") || String(r).includes("商誉") || String(r).includes("处罚");
+    return `<span class="risk-badge ${veto ? "risk-veto" : ""}" title="${esc(r)}">${veto ? "排雷" : "提示"} ${esc(r)}</span>`;
+  }).join("");
+  const eligHtml = i.source === "watch"
+    ? (i.eligible
+      ? `<span class="mon-elig ok" title="满足系统候选规则">符合规则</span>`
+      : `<span class="mon-elig bad" title="${esc((i.eligible_reasons || []).join("；"))}">规则未全满足</span>`)
+    : `<span class="mon-elig ok" title="已通过选股与排雷">系统已筛</span>`;
+  const structHtml = i.struct
+    ? (i.struct.ok
+      ? `<div class="mon-struct ok">✓ 结构确认：MA5 ${fmtNum(i.struct.ma5)} · MACD ${fmtNum(i.struct.dif)}/${fmtNum(i.struct.dea)} · K${fmtNum(i.struct.k)}&gt;D${fmtNum(i.struct.d)}</div>`
+      : `<div class="mon-struct bad">✗ 结构未确认：${esc((i.struct.reasons || []).slice(0, 2).join("；"))}</div>`)
+    : "";
+  return `<div class="monitor-card ${sm[1]}">
+    <div class="mon-head">
+      <div>
+        <b>${esc(i.name)}</b> <span class="sub">${esc(i.code)}</span>
+        ${i.source === "watch"
+          ? `<span class="mon-src src-watch">⭐ 用户自选</span>`
+          : `<span class="mon-src src-sys">系统推荐</span>`}
+        ${eligHtml}
+      </div>
+      <div class="mon-price ${pctClass(i.pct_chg)}">${fmtNum(i.price)}</div>
+    </div>
+    <div class="mon-chg ${pctClass(i.pct_chg)}">${fmtPct(i.pct_chg)}</div>
+    <div class="mon-status-row"><span class="mon-status-tag st-${i.status}">${esc(sm[0])}</span></div>
+    <div class="mon-levels">
+      <span>支撑 <b>${fmtNum(i.support)}</b></span>
+      <span>止损 <b class="down">${fmtNum(i.stop)}</b></span>
+      <span>目标 <b class="up">${fmtNum(i.target)}</b></span>
+    </div>
+    <div class="mon-note">${esc(i.note)}${riskTags}</div>
+    ${structHtml}
+  </div>`;
+}
+
+async function renderMonWatch() {
+  const box = $("#monWatchList");
+  if (!box) return;
+  if (STATIC) {
+    box.innerHTML = `<div class="empty" style="font-size:12px;padding:8px">静态预览版不支持添加自选，请访问部署服务器。</div>`;
+    return;
+  }
+  try {
+    const ud = await fetchWithTimeout("/api/userdata").then((r) => r.json());
+    const list = ud.watchlist || [];
+    if (!list.length) {
+      box.innerHTML = `<span class="mon-hint">还没有自选盯盘股票。输入代码加入后，将按同一套支撑/止损/止盈规则实时监测。</span>`;
+      return;
+    }
+    box.innerHTML =
+      `<span class="mon-hint">自选盯盘（${list.length}）：</span>` +
+      list.map((w) =>
+        `<span class="mon-watch-chip">${esc(w.name)} ${esc(w.code)}
+           <a class="mon-watch-del" data-code="${esc(w.code)}" title="移除">×</a></span>`
+      ).join("");
+    box.querySelectorAll(".mon-watch-del").forEach((el) => {
+      el.onclick = async (e) => {
+        e.preventDefault();
+        await fetchWithTimeout(`/api/watchlist?action=remove&code=${encodeURIComponent(el.dataset.code)}`).then((r) => r.json());
+        renderMonWatch();
+        loadWatchlist();
+        loadMonitor();
+      };
+    });
+  } catch (e) {
+    box.innerHTML = `<span class="mon-hint">自选加载失败：${esc(e.message || e)}</span>`;
+  }
+}
+
+async function loadMonitor() {
+  const list = $("#monitorList");
+  const meta = $("#monitorMeta");
+  const banner = $("#monitorBanner");
+  const rejectedBox = $("#monitorRejected");
+  if (!list) return;
+  if (STATIC) {
+    list.innerHTML = `<div class="empty">GitHub 静态预览不含实时行情。请访问部署服务器或本机服务查看实时盯盘。</div>`;
+    if (meta) meta.innerHTML = "盘中盯盘：静态版不可用";
+    if (banner) banner.innerHTML = "";
+    if (rejectedBox) rejectedBox.innerHTML = "";
+    return;
+  }
+  try {
+    const d = await fetchWithTimeout("/api/intraday", 6000).then((r) => r.json());
+    if (!d || !d.ok) throw new Error((d && d.error) || "无盯盘快照");
+    if (meta) {
+      meta.innerHTML = `数据日 <b>${esc(d.data_date || "")}</b> · 更新 ${esc((d.generated_at || "").replace("T", " ").slice(5, 16))} · 共 ${(d.items || []).length} 只 · ${d.in_session ? "盯盘中" : "非交易时段（最近收盘快照）"}`;
+    }
+    const v = d.market_verdict || "";
+    if (banner) {
+      if (v === "不适合入场") banner.innerHTML = `<div class="market-banner bad">今日大盘不适合入场 · 只做空仓观察，触发也按纪律等待转强</div>`;
+      else if (v === "观望为主") banner.innerHTML = `<div class="market-banner mid">今日大盘观望为主 · 轻仓试错，单票≤5%</div>`;
+      else if (v) banner.innerHTML = `<div class="market-banner good">今日大盘适合入场 · 优选回踩不破品种</div>`;
+      else banner.innerHTML = "";
+    }
+    if (rejectedBox) {
+      const rej = d.rejected || [];
+      rejectedBox.innerHTML = rej.length
+        ? `<div class="monitor-rejected">🔴 排雷剔除（不参与盯盘）：${rej.map((r) =>
+            `${esc(r.name)} ${esc(r.code)}（${esc((r.reasons || []).join("；"))}）`).join("；")}</div>`
+        : "";
+    }
+    if (!d.items || !d.items.length) {
+      list.innerHTML = `<div class="empty">当前无候选可盯（弱市空仓或数据未生成）。</div>`;
+      return;
+    }
+    list.innerHTML = d.items.map(monitorCard).join("");
+  } catch (e) {
+    list.innerHTML = `<div class="empty">无法读取盯盘状态：${esc(e.message || e)}。请确认本机/服务器盯盘脚本已运行（交易日自动启动）。</div>`;
+    if (meta) meta.innerHTML = "";
+    if (banner) banner.innerHTML = "";
+    if (rejectedBox) rejectedBox.innerHTML = "";
+  }
+}
+
+$("#btnMonAdd").onclick = async () => {
+  if (STATIC) { alert("静态预览版不支持添加自选，请访问部署服务器。"); return; }
+  const code = $("#monCode").value.trim();
+  const name = $("#monName").value.trim();
+  if (!/^\d{6}$/.test(code)) { alert("请输入 6 位数字股票代码，如 600519"); return; }
+  const res = await fetchWithTimeout("/api/watchlist", 8000, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, name: name || undefined }),
+  }).then((r) => r.json());
+  if (res.error) { alert(res.error); return; }
+  $("#monCode").value = ""; $("#monName").value = "";
+  renderMonWatch();
+  loadWatchlist();
+  loadMonitor();
+};
+
 /* ---------- 个股详情 + K线 ---------- */
 async function openModal(code, date, name) {
   state.modal = { code, date, name, klt: 101, chan: null };
@@ -1227,6 +1380,7 @@ $("#btnVerifyAll").onclick = startVerifyAll;
 $("#btnSignal").onclick = loadSignal;
 $("#btnNews").onclick = loadNews;
 $("#btnSectors").onclick = loadSectors;
+$("#btnMonitorRefresh").onclick = loadMonitor;
 $("#btnReset").onclick = () => { try { localStorage.removeItem(LS_KEY); } catch (e) {} location.reload(); };
 $("#btnMd").onclick = () => download("md");
 $("#btnDocx").onclick = () => download("docx");

@@ -415,3 +415,64 @@ td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: t
 .disclaimer { margin: 10px 0 0; color: #e8590c; font-weight: 600; }
 .side-link { display: block; font-size: 12px; color: #2563eb; text-decoration: none; margin: 8px 0 4px; }
 .side-link:hover { text-decoration: underline; }
+
+/* ---------- 盘中盯盘板块 ---------- */
+.monitor-meta { font-size: 12px; color: var(--sub); margin: 10px 0 10px; }
+.monitor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.monitor-card { background: #fff; border: 1px solid var(--line); border-left: 5px solid #adb5bd; border-radius: 12px; padding: 12px 14px; }
+.monitor-card.mon-broke { border-left-color: #e03131; background: #fff5f5; }
+.monitor-card.mon-weak { border-left-color: #e8590c; background: #fff9ec; }
+.monitor-card.mon-tested { border-left-color: #f08c00; background: #fffbe6; }
+.monitor-card.mon-near { border-left-color: #1971c2; }
+.monitor-card.mon-target { border-left-color: #2f9e44; background: #f4fbf6; }
+.mon-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.mon-head b { font-size: 15px; }
+.mon-price { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mon-chg { font-size: 12px; font-weight: 600; margin: 2px 0 8px; }
+.mon-levels { display: flex; gap: 12px; font-size: 11px; color: var(--sub); margin-bottom: 8px; }
+.mon-levels b { color: var(--ink); font-size: 13px; margin-left: 2px; font-variant-numeric: tabular-nums; }
+.mon-levels .up { color: var(--red); }
+.mon-levels .down { color: var(--green); }
+.mon-note { font-size: 12px; line-height: 1.6; background: #fafbfd; border-radius: 8px; padding: 7px 9px; color: #3d4754; }
+.mon-struct { font-size: 11px; margin-top: 6px; padding: 5px 8px; border-radius: 6px; }
+.mon-struct.ok { color: #2b8a3e; background: #ebfbee; }
+.mon-struct.bad { color: #c92a2a; background: #fff0f0; }
+.market-banner { border-radius: 12px; padding: 11px 16px; color: #fff; font-size: 14px; margin-bottom: 12px; }
+.market-banner.bad { background: linear-gradient(135deg, #e03131, #c92a2a); }
+.market-banner.mid { background: linear-gradient(135deg, #1c7ed6, #1971c2); }
+.market-banner.good { background: linear-gradient(135deg, #e8590c, #f08c00); }
+.mon-src { font-size: 10px; padding: 1px 8px; border-radius: 999px; margin-left: 4px; font-weight: 600; }
+.mon-src.src-watch { background: #fff3bf; color: #b08900; }
+.mon-src.src-sys { background: #e7f5ff; color: #1971c2; }
+.mon-elig { font-size: 10px; padding: 1px 7px; border-radius: 6px; margin-left: 4px; font-weight: 600; }
+.mon-elig.ok { background: #ebfbee; color: #2b8a3e; }
+.mon-elig.bad { background: #fff0f0; color: #c92a2a; }
+.monitor-rejected { background: #fff0f0; border: 1px solid #ffc9c9; color: #c92a2a; border-radius: 10px; padding: 9px 13px; font-size: 12px; margin-bottom: 12px; }
+.monitor-legend { display: flex; flex-direction: column; gap: 7px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 4px 0 12px; font-size: 12px; color: var(--sub); }
+.lg-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lg-item b { color: var(--ink); min-width: 56px; }
+.lg-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 1.7; }
+.lg-bad, .st-broke, .st-dark { background: #e03131; color: #fff; }
+.lg-mid, .st-orange { background: #f59f00; color: #fff; }
+.lg-good, .st-green { background: #2f9e44; color: #fff; }
+.st-red { background: #f08c00; color: #fff; }
+.st-blue { background: #1971c2; color: #fff; }
+.st-gray { background: #adb5bd; color: #fff; }
+.mon-status-row { margin: 6px 0 4px; }
+.mon-status-tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; }
+.mon-status-tag.st-broke { background: #e03131; }
+.mon-status-tag.st-weak, .mon-status-tag.st-tested_weak { background: #f59f00; }
+.mon-status-tag.st-tested { background: #f08c00; }
+.mon-status-tag.st-target { background: #2f9e44; }
+.mon-status-tag.st-near { background: #1971c2; }
+.mon-status-tag.st-watch, .mon-status-tag.st-nodata { background: #adb5bd; }
+.market-banner { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .4px; }
+.market-banner::before { content: "大盘"; font-size: 11px; background: rgba(255,255,255,.22); padding: 3px 10px; border-radius: 999px; font-weight: 700; }
+.monitor-watch-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 8px 0 10px; }
+.monitor-watch-form label { font-size: 12px; color: var(--sub); display: flex; flex-direction: column; gap: 4px; }
+.monitor-watch-form input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; min-width: 140px; }
+.monitor-watch-form button { padding: 8px 16px; }
+.monitor-watch-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.mon-watch-chip { background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+.mon-watch-del { color: #c92a2a; cursor: pointer; font-weight: 700; text-decoration: none; font-size: 14px; line-height: 1; }
+.mon-hint { font-size: 12px; color: var(--sub); }

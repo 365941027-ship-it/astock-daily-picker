@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-store">
   <title>A股每日选股</title>
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <!-- 访问码门（静态版配置 PIN 后生效，轻量防误入） -->
@@ -32,6 +32,7 @@
       </div>
       <nav class="nav" id="mainNav">
         <a class="nav-item active" data-section="pick">选股</a>
+        <a class="nav-item" data-section="monitor">盘中盯盘</a>
         <a class="nav-item" data-section="replay">历史复盘</a>
         <a class="nav-item" data-section="verify">预判核对</a>
         <a class="nav-item" data-section="signal">缠论研判</a>
@@ -126,6 +127,42 @@
       </section>
 
       <!-- 历史复盘 -->
+      <section class="section" id="sec-monitor">
+        <div class="card">
+          <div class="card-title">盘中盯盘 <span class="meta">系统候选 + 你的自选，同一套规则实时监测</span></div>
+          <div class="monitor-watch-form">
+            <label>自选代码 <input type="text" id="monCode" maxlength="6" placeholder="6位代码，如 600519" inputmode="numeric"></label>
+            <label>名称（可选） <input type="text" id="monName" maxlength="10" placeholder="留空自动补全"></label>
+            <button id="btnMonAdd" class="primary">＋ 加入盯盘</button>
+          </div>
+          <div id="monWatchList" class="monitor-watch-list"></div>
+          <div class="actions"><button id="btnMonitorRefresh" class="ghost">立即刷新</button></div>
+        </div>
+        <div class="monitor-meta" id="monitorMeta"></div>
+        <div class="monitor-legend" id="monitorLegend">
+          <div class="lg-item lg-market"><b>大盘</b>
+            <span class="lg-chip lg-bad">不适合入场</span>
+            <span class="lg-chip lg-mid">观望为主</span>
+            <span class="lg-chip lg-good">适合入场</span>
+          </div>
+          <div class="lg-item"><b>卡片状态</b>
+            <span class="lg-chip st-red">触发候选</span>
+            <span class="lg-chip st-orange">结构未确认/等站回</span>
+            <span class="lg-chip st-green">触及目标</span>
+            <span class="lg-chip st-blue">接近支撑</span>
+            <span class="lg-chip st-gray">未到支撑</span>
+            <span class="lg-chip st-dark">破止损·放弃</span>
+          </div>
+          <div class="lg-item"><b>结构</b>
+            <span class="lg-chip st-green">✓ 价≥MA5+MACD不弱+K>D</span>
+            <span class="lg-chip st-orange">✗ 未确认</span>
+          </div>
+        </div>
+        <div id="monitorRejected"></div>
+        <div id="monitorBanner"></div>
+        <div id="monitorList" class="monitor-grid"></div>
+      </section>
+
       <section class="section" id="sec-replay">
         <div class="card">
           <div class="card-title">历史回放</div>
@@ -309,6 +346,6 @@
     }
   </script>
   <script>window.STATIC_MODE = true;</script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>
