@@ -16,6 +16,10 @@ on:
     # 北京时间 18:05 = UTC 10:05，周一至周五
     - cron: "5 10 * * 1-5"
 
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
