@@ -105,6 +105,28 @@ def _in_session(force: bool) -> bool:
     return dtime(9, 15) <= n.time() <= dtime(15, 10)
 
 
+def _wait_until_open(args) -> bool:
+    """crontab 常 9:10 启动，但交易时段从 9:15 开始。
+    若为交易日且尚未到 9:15，则等待开盘（避免一启动就误判退出）。
+    返回 True 表示可进入盯盘循环；False 表示应退出。
+    """
+    if args.force:
+        return True
+    n = _now()
+    if n.weekday() >= 5:
+        print("[盯盘] 周末休市，退出循环。")
+        return False
+    if n.time() > dtime(15, 10):
+        print("[盯盘] 已过 15:10 收盘，退出循环。")
+        return False
+    if n.time() < dtime(9, 15):
+        print(f"[盯盘] 交易日未开盘（{n.strftime('%H:%M')}），等待 9:15 开盘…")
+        while _now().time() < dtime(9, 15):
+            time.sleep(20)
+        print("[盯盘] 开盘，开始盯盘。")
+    return True
+
+
 def classify(price, low, high, card) -> tuple[str, str]:
     """返回 (状态码, 中文说明)。基于策略卡的支撑/止损/止盈做盘中判断。"""
     support = card.get("support")
@@ -388,6 +410,9 @@ def main() -> int:
     args = parser.parse_args()
     global CFG_PROXY
     CFG_PROXY = args.proxy
+
+    if args.watch and not _wait_until_open(args):
+        return 0
 
     in_session = _in_session(args.force)
     if not in_session and not args.watch:
