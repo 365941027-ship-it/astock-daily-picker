@@ -370,9 +370,9 @@ td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: t
     overflow-x: auto;
   }
   .brand { margin-bottom: 0; }
-  .nav { flex-direction: row; gap: 4px; flex: 1; }
-  .nav-item { white-space: nowrap; padding: 8px 12px; font-size: 13px; }
-  .side-footer { display: none; }
+.nav { flex-direction: row; gap: 4px; flex: 1; }
+.nav-item { white-space: nowrap; padding: 8px 12px; font-size: 13px; }
+.side-footer { display: none; }
   .content { margin-left: 0; padding: 16px 14px 60px; }
   .form-grid { grid-template-columns: 1fr; }
 }
@@ -418,6 +418,20 @@ td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: t
 
 /* ---------- 盘中盯盘板块 ---------- */
 .monitor-meta { font-size: 12px; color: var(--sub); margin: 10px 0 10px; }
+.freshness-strip { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 9px 14px; border-radius: 10px; font-size: 13px; }
+.freshness-strip.on { background: #e6f7ee; color: #087f5b; border: 1px solid #b2e3cd; }
+.freshness-strip.off { background: #f1f3f5; color: #495057; border: 1px solid #dee2e6; }
+.freshness-strip b { font-weight: 600; }
+.fresh-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #adb5bd; margin-right: 4px; vertical-align: 0; }
+.fresh-dot.live { background: #2f9e44; box-shadow: 0 0 0 0 rgba(47,158,68,.5); animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(47,158,68,.45); } 70% { box-shadow: 0 0 0 7px rgba(47,158,68,0); } 100% { box-shadow: 0 0 0 0 rgba(47,158,68,0); } }
+.nav-more { position: relative; }
+.nav-more > summary { list-style: none; cursor: pointer; padding: 9px 10px; border-radius: 10px; color: var(--sub); font-size: 13px; }
+.nav-more > summary::-webkit-details-marker { display: none; }
+.nav-more > summary:hover { background: #f1f5fb; color: var(--ink); }
+.nav-more[open] > summary { color: var(--ink); font-weight: 600; }
+.nav-more .nav-item.sub { display: block; padding: 7px 12px 7px 24px; font-size: 13px; }
+.nav-more .nav-item.sub.active { color: var(--primary); font-weight: 600; }
 .monitor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .monitor-card { background: #fff; border: 1px solid var(--line); border-left: 5px solid #adb5bd; border-radius: 12px; padding: 12px 14px; }
 .monitor-card.mon-broke { border-left-color: #e03131; background: #fff5f5; }
