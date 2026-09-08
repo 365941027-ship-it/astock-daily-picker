@@ -22,8 +22,9 @@ mkdir -p "$LOG_DIR"
 
 echo "== [2/4] 构建镜像并启动网页服务 =="
 cd "$APP_DIR"
-docker compose build web
-docker compose up -d web
+COMPOSE="docker compose -f $APP_DIR/deploy/docker-compose.yml"
+$COMPOSE build web
+$COMPOSE up -d web
 sleep 3
 docker ps --filter name=ashare-web --format "网页服务容器：{{.Names}} 状态={{.Status}}"
 
@@ -39,11 +40,11 @@ fi
 echo "== [4/4] 配置宿主机定时任务 =="
 # 交易日 18:05 盘后更新（容器内直连）；09:10 启动盯盘容器（内部 15:10 自动退出）
 CRON_UPD="5 18 * * 1-5 cd $APP_DIR && docker exec ashare-web python daily_update.py --no-publish >> $LOG_DIR/daily.log 2>&1"
-CRON_MON="10 9 * * 1-5 cd $APP_DIR && docker start ashare-monitor >/dev/null 2>&1 || docker compose up -d monitor"
+CRON_MON="0 9 * * 1-5 cd $APP_DIR && docker start ashare-monitor >/dev/null 2>&1 || docker compose -f $APP_DIR/deploy/docker-compose.yml up -d monitor"
 CRON_CATCH="30 9 * * 1-5 cd $APP_DIR && docker exec ashare-web python scripts/daily_catchup.py >> $LOG_DIR/catchup.log 2>&1 || true"
 (crontab -l 2>/dev/null | grep -v "ashare-web\|ashare-monitor\|daily_catchup" ; \
   echo "$CRON_UPD" ; echo "$CRON_MON" ; echo "$CRON_CATCH") | crontab -
-echo "  已写入 crontab：18:05 盘后更新 / 09:10 启动盯盘 / 09:30 补跑检查"
+echo "  已写入 crontab：18:05 盘后更新 / 09:00 启动盯盘（等到9:15开盘） / 09:30 补跑检查"
 
 IP=$(hostname -I | awk '{print $1}')
 echo
