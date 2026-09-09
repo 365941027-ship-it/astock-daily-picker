@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-store">
   <title>A股每日选股</title>
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
   <!-- 访问码门（静态版配置 PIN 后生效，轻量防误入） -->
@@ -31,14 +31,17 @@
         </div>
       </div>
       <nav class="nav" id="mainNav">
-        <a class="nav-item active" data-section="pick">选股</a>
-        <a class="nav-item" data-section="monitor">盘中盯盘</a>
-        <a class="nav-item" data-section="replay">历史复盘</a>
+        <a class="nav-item active" data-section="monitor">盘中盯盘</a>
+        <a class="nav-item" data-section="replay">策略复盘</a>
         <a class="nav-item" data-section="verify">预判核对</a>
-        <a class="nav-item" data-section="signal">缠论研判</a>
-        <a class="nav-item" data-section="news">财经新闻</a>
-        <a class="nav-item" data-section="watch">自选股</a>
+        <a class="nav-item" data-section="watch">我的自选</a>
         <a class="nav-item" data-section="hold">我的持仓</a>
+        <details class="nav-more" id="navMore">
+          <summary>更多</summary>
+          <a class="nav-item sub" data-section="pick">选股参数</a>
+          <a class="nav-item sub" data-section="signal">大盘与行业</a>
+          <a class="nav-item sub" data-section="news">财经新闻</a>
+        </details>
       </nav>
       <div class="side-footer">
         <div class="status-badge" id="statusBadge">空闲</div>
@@ -346,6 +349,6 @@
     }
   </script>
   <script>window.STATIC_MODE = true;</script>
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

@@ -351,7 +351,11 @@ async function renderProductHero(cfg) {
 }
 
 document.querySelectorAll(".nav-item").forEach((a) => {
-  a.onclick = () => switchSection(a.dataset.section);
+  a.onclick = () => {
+    switchSection(a.dataset.section);
+    const more = document.getElementById("navMore");
+    if (more && a.classList.contains("sub")) more.removeAttribute("open");
+  };
 });
 
 /* ---------- 初始化 ---------- */
@@ -1123,7 +1127,17 @@ async function loadMonitor() {
     const d = await fetchWithTimeout("/api/intraday", 6000).then((r) => r.json());
     if (!d || !d.ok) throw new Error((d && d.error) || "无盯盘快照");
     if (meta) {
-      meta.innerHTML = `数据日 <b>${esc(d.data_date || "")}</b> · 更新 ${esc((d.generated_at || "").replace("T", " ").slice(5, 16))} · 共 ${(d.items || []).length} 只 · ${d.in_session ? "盯盘中" : "非交易时段（最近收盘快照）"}`;
+      const gen = (d.generated_at || "").replace("T", " ").slice(0, 16);
+      const fresh = d.in_session
+        ? `<span class="fresh-dot live"></span> 盯盘中 · 每10秒刷新`
+        : `<span class="fresh-dot"></span> 休市 · 最近快照 ${esc(gen)}`;
+      meta.innerHTML =
+        `<div class="freshness-strip ${d.in_session ? "on" : "off"}">
+          <b>${fresh}</b>
+          <span>数据日 ${esc(d.data_date || "—")}</span>
+          <span>候选 ${(d.items || []).length} 只</span>
+          ${d.market_verdict ? `<span>大盘：${esc(d.market_verdict)}</span>` : ""}
+        </div>`;
     }
     const v = d.market_verdict || "";
     if (banner) {
