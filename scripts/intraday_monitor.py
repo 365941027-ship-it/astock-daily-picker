@@ -65,7 +65,29 @@ def ensure_kline(code: str, cfg, day: str = "") -> list | None:
 
 
 def latest_replay_and_verdict():
-    """返回 (payload, data_date, market_verdict)。"""
+    """返回 (payload, data_date, market_verdict)。
+
+    优先使用"当日选股结果"(last_result.json)——这样盯盘的「系统推荐」与
+    选股页完全同源（含排雷/财务/ATR 过滤，口径一致）；
+    没有选股结果时才回退到历史回放的最新一天。
+    """
+    lr_path = os.path.join(BASE, "daily_picker", "cache", "last_result.json")
+    try:
+        with open(lr_path, encoding="utf-8") as f:
+            lr = json.load(f)
+        res = (lr.get("result") or {}) if lr.get("kind") == "pick" else {}
+        if res and res.get("data_date"):
+            payload = {
+                "date": res["data_date"],
+                "pool": len(res.get("priority", [])) + len(res.get("strong", [])),
+                "priority": res.get("priority", []),
+                "strong": res.get("strong", []),
+                "excluded": res.get("excluded", []),
+            }
+            return payload, res["data_date"], res.get("market_verdict", "")
+    except Exception:
+        pass
+
     replay_dir = os.path.join(BASE, "daily_picker", "cache", "replay")
     idx_path = os.path.join(replay_dir, "index.json")
     try:

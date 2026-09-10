@@ -155,6 +155,8 @@ class Job:
                 with open(RESULT_FILE, "r", encoding="utf-8") as f:
                     saved = json.load(f)
                 if saved and saved.get("state") == "done" and saved.get("result"):
+                    if saved.get("kind", "pick") != "pick":
+                        return  # 只恢复选股结果；回放/核对结果不写入本文件
                     self.state = "done"
                     self.result = saved["result"]
                     self.kind = saved.get("kind", "pick")
@@ -163,7 +165,13 @@ class Job:
             self.state = "idle"
 
     def save_to_disk(self):
-        """把当前结果落盘，供服务重启后恢复。"""
+        """把当前结果落盘，供服务重启后恢复。
+
+        注意：只有"选股(pick)"任务才写 last_result.json——它是选股页的数据源。
+        回放/核对有各自的缓存文件，若也写入此处会覆盖选股结果（历史 bug）。
+        """
+        if self.kind != "pick":
+            return
         try:
             payload = {
                 "state": self.state,
@@ -286,10 +294,8 @@ def run_pipeline(params: Dict):
             except Exception:
                 pass
             result = screen(snapshot, kline_map, cfg, target, market_verdict=market_verdict)
-            if market_verdict == "不适合入场":
-                # 大盘不宜入场：不推荐任何个股，仅空仓观察
-                result["priority"] = []
-                result["strong"] = []
+            # 口径统一（方案A）：弱市仍保留观察名单，但由前端/策略卡强制标注“禁买·等待转强”，
+            # 与盘中盯盘(replay)一致；不再清空候选，避免两处数字不一致。
             # 事件排雷：仅当日候选生效（历史回放不套用今日公告，避免未来函数）
             risk_rejected: List[Dict] = []
             try:
