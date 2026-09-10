@@ -31,6 +31,8 @@ DEFAULT_PARAMS: Dict[str, object] = {
     "enforce_t1": True,   # A股 T+1：买入当日不可卖出，最早次日（下一交易日）才可平仓
     "require_shrink": False,  # 触发日需缩量回踩（量 < 近5日均量），降低隔夜兑现风险
     "max_atr_pct": 0.0,       # 若 >0，则过滤波动过大的票（ATR% 上限），控制隔夜跳空风险
+    "conservative_fill": True,  # 保守成交：跳空跌破止损按开盘价成交；跳空高开不享受超额收益
+    "cost_pct": 0.0035,         # 单笔往返成本：佣金0.025%×2 + 印花税0.1% + 滑点0.2% ≈ 0.35%
 }
 
 
@@ -167,9 +169,14 @@ def simulate(entry: Dict, bars: List[Dict], params: Optional[Dict] = None) -> Di
         if i == 0 and p["enforce_t1"]:
             continue
         if bar["low"] <= stop:
-            exit_price, exit_date, reason = stop, day, "止损"
+            fill = stop
+            # 保守成交：若跳空低开已跌破止损，实际只能按更差的开盘价卖出
+            if p.get("conservative_fill") and bar["open"] < stop:
+                fill = bar["open"]
+            exit_price, exit_date, reason = fill, day, "止损"
             break
         if bar["high"] >= target:
+            # 保守成交：跳空高开也不计入超出目标的额外收益
             exit_price, exit_date, reason = target, day, "止盈"
             break
         if i == p["hold_days"]:  # 到期
@@ -179,7 +186,8 @@ def simulate(entry: Dict, bars: List[Dict], params: Optional[Dict] = None) -> Di
         last = bd[days[-1]]
         exit_price, exit_date, reason = last["close"], days[-1], "到期卖出"
 
-    pnl = exit_price / entry_price - 1
+    # 扣除往返交易成本（佣金/印花税/滑点）
+    pnl = exit_price / entry_price - 1 - float(p.get("cost_pct", 0.0))
     return {
         "status": "trade",
         "code": code,
@@ -247,6 +255,72 @@ def run_backtest(verify_entries: List[Dict], params: Optional[Dict] = None) -> D
         "curve_points": curve_points,
         "no_trigger": stats["no_trigger"],
         "skip": stats["skip"],
+    }
+
+
+def run_portfolio(
+    verify_entries: List[Dict],
+    params: Optional[Dict] = None,
+    max_positions: int = 3,
+    weight: float = 1.0 / 3.0,
+) -> Dict:
+    """组合级回测（贴近实盘）：最多同时持有 max_positions 只，每只投入固定比例资金，其余留现金。
+
+    与 run_backtest 的区别：不再假设"每笔全仓复利"，因此收益基数更真实；
+    已包含 simulate 内的交易成本与保守成交价。
+    """
+    trades: List[Dict] = []
+    for e in verify_entries:
+        code = str(e.get("code") or "").zfill(6)
+        r = simulate(e, load_kline_bars(code), params=params)
+        if r["status"] == "trade":
+            trades.append(r)
+    trades.sort(key=lambda t: (t["entry_date"], t["code"]))
+
+    dates = sorted({t["entry_date"] for t in trades} | {t["exit_date"] for t in trades})
+    if not dates:
+        return {"equity_curve": [1.0], "curve_points": [], "n_trades": 0,
+                "cum_return": 0.0, "max_drawdown": 0.0, "skipped": 0, "trades": []}
+
+    cash = 1.0
+    open_pos: List[Dict] = []
+    curve: List[float] = [1.0]
+    curve_points: List[Dict] = []
+    peak, mdd = 1.0, 0.0
+    skipped = 0
+
+    for day in dates:
+        # 先处理平仓（释放资金）
+        for p in [x for x in open_pos if x["exit_date"] == day]:
+            cash += p["value"] * (1 + p["pnl"])
+            open_pos.remove(p)
+        # 再处理开仓（等权分配，资金不足则跳过）
+        equity_now = cash + sum(x["value"] for x in open_pos)
+        for t in [x for x in trades if x["entry_date"] == day]:
+            if len(open_pos) >= max_positions:
+                skipped += 1
+                continue
+            alloc = equity_now * weight
+            if alloc <= 0 or cash < alloc:
+                skipped += 1
+                continue
+            cash -= alloc
+            open_pos.append({"value": alloc, "pnl": t["pnl_pct"] / 100.0, "exit_date": t["exit_date"]})
+        equity = cash + sum(x["value"] for x in open_pos)
+        curve.append(round(equity, 4))
+        curve_points.append({"date": day, "equity": round(equity, 4)})
+        peak = max(peak, equity)
+        mdd = min(mdd, equity / peak - 1)
+
+    final_equity = curve[-1]
+    return {
+        "equity_curve": curve,
+        "curve_points": curve_points,
+        "n_trades": len(trades),
+        "cum_return": round((final_equity - 1) * 100, 2),
+        "max_drawdown": round(mdd * 100, 2),
+        "skipped": skipped,
+        "trades": trades,
     }
 
 

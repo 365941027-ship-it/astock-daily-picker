@@ -18,7 +18,7 @@ sys.path.insert(0, BASE)
 
 from daily_picker.config import Config, cn_now  # noqa: E402
 from daily_picker.risks import load_risk_cache  # noqa: E402
-from daily_picker.strategy import build_cards, run_backtest  # noqa: E402
+from daily_picker.strategy import build_cards, run_backtest, run_portfolio  # noqa: E402
 
 
 PRESETS = [
@@ -246,6 +246,15 @@ td:first-child,th:first-child{text-align:left}
   </div>
 
   <div class="panel">
+    <h2>组合回测（可执行口径）</h2>
+    <p style="font-size:13px;color:var(--sub);margin:-6px 0 14px">
+      上面那只净值曲线是"每笔全仓复利"的乐观口径。下面这个才是<b>贴近实盘</b>的口径：
+      最多同时持有 3 只、每只约占三分之一资金，其余留现金；已扣除交易成本、按 T+1 与保守成交价计算。
+    </p>
+    <div class="cards" id="pfMetrics"></div>
+  </div>
+
+  <div class="panel">
     <h2>参数对比：哪套规矩更稳？</h2>
     <p style="font-size:13px;color:var(--sub);margin:-6px 0 14px">同一批历史信号，换不同止损/止盈/持有天数/是否弱市禁买，结果并排对比。回撤越浅、收益越稳，说明这套规矩越抗揍。</p>
     <label style="font-size:13px;color:var(--sub);display:block;margin-bottom:12px">选择方案查看推荐口径：
@@ -306,6 +315,18 @@ document.getElementById("metrics").innerHTML = [
   ["最大回撤", fmt(m.max_drawdown)+"%", "按复利净值计算"],
   ["vs 上证指数", fmt(m.excess_return)+"%", `基准 ${fmt(m.bench_return)}%`],
 ].map(([k,v,s]) => `<div class="metric"><div class="k">${k}</div><div class="v ${k==="最大回撤"?"down":(k==="累计收益"||k==="vs 上证指数")?(m.cum_return>=0||m.excess_return>=0?"up":"down"):""}">${v}</div><div class="s">${s}</div></div>`).join("");
+
+const pf = document.getElementById("pfMetrics");
+if (pf) {
+  const pr = m.portfolio_return, pd = m.portfolio_drawdown;
+  const gap = (m.cum_return != null && pr != null) ? (pr - m.cum_return) : null;
+  pf.innerHTML = [
+    ["组合收益（3只等权）", fmt(pr)+"%", "扣成本、T+1、分仓"],
+    ["组合最大回撤", fmt(pd)+"%", "分仓后的真实波动"],
+    ["与全仓口径差距", gap==null?"—":fmt(gap)+"%", "全仓复利的乐观部分"],
+    ["因满仓放弃信号", (m.portfolio_skipped ?? 0)+" 次", "同时最多持3只"],
+  ].map(([k,v,s]) => `<div class="metric"><div class="k">${k}</div><div class="v ${(k==="组合最大回撤"||(gap!=null&&gap<0&&k==="与全仓口径差距"))?"down":(k==="组合收益（3只等权）"&&pr>=0?"up":"")}">${v}</div><div class="s">${s}</div></div>`).join("");
+}
 
 const cv = document.getElementById("chart");
 const dpr = window.devicePixelRatio||1;
@@ -449,6 +470,10 @@ def main() -> int:
     print(f"核对记录 {len(entries)} 条 → 交易 {result['n_trades']} 笔（未触发 {result['no_trigger']}，跳过 {result['skip']}）")
     print(f"胜率 {result['win_rate']}% | 累计收益 {result['cum_return']}% | 最大回撤 {result['max_drawdown']}% | 盈亏比 {result['profit_factor']}")
 
+    # ---- 组合级回测（分仓 + 交易成本 + 保守成交），更接近实盘 ----
+    pf = run_portfolio(entries, params=rec["params"], max_positions=3, weight=1 / 3)
+    print(f"[组合] 最多3只等权分仓：收益 {pf['cum_return']}% | 回撤 {pf['max_drawdown']}% | 交易 {pf['n_trades']} 笔 | 因满仓跳过 {pf['skipped']} 次")
+
     bench_bars = fetch_benchmark(cfg)
     be = bench_curve(bench_bars, trades)
     bench_return = round((be[-1] - 1) * 100, 2) if be else None
@@ -461,6 +486,10 @@ def main() -> int:
         "excess_return": round(result["cum_return"] - (bench_return or 0), 2) if bench_return is not None else None,
         "equity": equity_curve,
         "bench": be,
+        "portfolio_return": pf["cum_return"],
+        "portfolio_drawdown": pf["max_drawdown"],
+        "portfolio_skipped": pf["skipped"],
+        "portfolio_max_positions": 3,
     }
 
     # ---- 参数对比：跑全部预设，统一日期轴对齐 ----
@@ -542,10 +571,11 @@ def main() -> int:
         "transparency": {
             "sample_n_trades": summary["n_trades"],
             "notes": [
-                "回测基于本地行情缓存，样本期较短，参数为样本内优化，存在过拟合风险",
+                "已按A股 T+1 约束（买入当日不可卖出）、扣除往返成本约0.35%（佣金+印花税+滑点）",
+                "止损采用保守成交：跳空跌破止损时按更差的开盘价成交；跳空高开不享受超额收益",
+                "样本期较短（27笔级别），参数为样本内优化，存在明显的过拟合风险",
                 "股票池取自当前缓存中的股票，未包含已退市/长期停牌标的，胜率可能高估",
-                "未计入交易佣金与滑点；A股卖出含印花税，实盘收益会低于回测",
-                "风险公告仅用于当日候选判断，历史回放未使用未来公告（已在实现中修正）",
+                "「累计收益」为逐笔全仓复利（乐观）；「组合回测」为最多3只等权分仓，更接近实盘",
             ],
         },
         "failure_cases": failure_cases,
