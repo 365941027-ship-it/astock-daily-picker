@@ -58,6 +58,10 @@ from daily_picker.risks import (  # noqa: E402
     risk_verdict,
     risk_warnings,
 )
+from daily_picker.strategy import atr_pct_of  # noqa: E402
+
+# T+1 隔夜风险控制：ATR% 超过该值的票不推荐（回测显示可显著降低回撤）
+MAX_ATR_PCT = 6.0
 
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -298,6 +302,11 @@ def run_pipeline(params: Dict):
                         for c in result[bucket]:
                             risks = risk_map.get(c.code, [])
                             veto, reasons = risk_verdict(risks)
+                            # T+1 隔夜风险：高波动(ATR%)票不推荐
+                            atr = atr_pct_of(c.code)
+                            if atr is not None and atr > MAX_ATR_PCT:
+                                reasons.append(f"波动过大（ATR {atr:.1f}% > {MAX_ATR_PCT}%），T+1隔夜风险高，一票否决")
+                                veto = True
                             # 财务亏损硬过滤：最新财报归母净利润为负 → 一票否决
                             fin = fetch_fin_loss(c.code, cfg)
                             if fin and fin["loss"]:
@@ -488,12 +497,20 @@ def replay_pipeline(params: Dict):
                     pri_kept: List[object] = []
                     strong_kept: List[object] = []
                     for c in pri:
+                        atr = atr_pct_of(c.code)
+                        if atr is not None and atr > MAX_ATR_PCT:
+                            fin_names.append(f"{c.name}({c.code})·波动{atr:.1f}%")
+                            continue
                         fin = fetch_fin_loss(c.code, cfg)
                         if fin and fin["loss"]:
                             fin_names.append(f"{c.name}({c.code})")
                             continue
                         pri_kept.append(c)
                     for c in strong:
+                        atr = atr_pct_of(c.code)
+                        if atr is not None and atr > MAX_ATR_PCT:
+                            fin_names.append(f"{c.name}({c.code})·波动{atr:.1f}%")
+                            continue
                         fin = fetch_fin_loss(c.code, cfg)
                         if fin and fin["loss"]:
                             fin_names.append(f"{c.name}({c.code})")

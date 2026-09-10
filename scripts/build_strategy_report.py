@@ -66,7 +66,27 @@ PRESETS = [
         "name": "I G+仅无风险候选",
         "desc": "G规则 + 有风险提示的候选不参与交易",
         "params": {"target_pct": 0.08, "skip_weak": True, "skip_risk": True},
+    },
+    {
+        "name": "J 参考：T+0假设（不可执行）",
+        "desc": "与I相同，但允许买入当日卖出——A股T+1下无法执行，仅作对比",
+        "params": {"target_pct": 0.08, "skip_weak": True, "skip_risk": True, "enforce_t1": False},
+    },
+    {
+        "name": "K T+1 + 缩量回踩",
+        "desc": "I + 要求触发日缩量（量<近5日均量），过滤放量兑现型",
+        "params": {"target_pct": 0.08, "skip_weak": True, "require_shrink": True},
+    },
+    {
+        "name": "L T+1 + 波动约束",
+        "desc": "I + 过滤 ATR>6% 的高波动票，降低隔夜跳空伤害",
+        "params": {"target_pct": 0.08, "skip_weak": True, "max_atr_pct": 6.0},
         "recommended": True,
+    },
+    {
+        "name": "M T+1 + 缩量 + 波动",
+        "desc": "I + 缩量回踩 + ATR≤6%，双重降低隔夜风险",
+        "params": {"target_pct": 0.08, "skip_weak": True, "require_shrink": True, "max_atr_pct": 6.0},
     },
 ]
 

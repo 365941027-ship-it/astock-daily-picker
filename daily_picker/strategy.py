@@ -28,6 +28,9 @@ DEFAULT_PARAMS: Dict[str, object] = {
     "chase_skip": 1.05,   # 执行日开盘高开超支撑 5% 放弃（不追高）
     "skip_weak": False,   # 大盘弱势日是否直接过滤（不触发交易）
     "skip_risk": False,   # 有风险提示的候选是否直接过滤（不触发交易）
+    "enforce_t1": True,   # A股 T+1：买入当日不可卖出，最早次日（下一交易日）才可平仓
+    "require_shrink": False,  # 触发日需缩量回踩（量 < 近5日均量），降低隔夜兑现风险
+    "max_atr_pct": 0.0,       # 若 >0，则过滤波动过大的票（ATR% 上限），控制隔夜跳空风险
 }
 
 
@@ -56,6 +59,26 @@ def _next_date(dates: List[str], d: str) -> Optional[str]:
         if x > d:
             return x
     return None
+
+
+def atr_pct_of(code: str, lookback: int = 14) -> Optional[float]:
+    """计算个股平均真实波幅百分比（ATR%），用于 T+1 隔夜风险控制。
+
+    取最近 lookback 根日K的 (high-low)/前收盘 均值×100。数据不足返回 None。
+    """
+    bars = load_kline_bars(code)
+    if not bars or len(bars) < 3:
+        return None
+    win = bars[-(lookback + 1):]
+    trs: List[float] = []
+    for i in range(1, len(win)):
+        prev_close = win[i - 1].get("close")
+        if not prev_close:
+            continue
+        trs.append((win[i]["high"] - win[i]["low"]) / prev_close * 100.0)
+    if not trs:
+        return None
+    return sum(trs) / len(trs)
 
 
 def _merge_params(params: Optional[Dict]) -> Dict:
@@ -94,6 +117,28 @@ def simulate(entry: Dict, bars: List[Dict], params: Optional[Dict] = None) -> Di
         return {"status": "no_trigger", "reason": "未回踩到支撑（低点未触及或收盘破位）", "code": code}
 
     dates = sorted(bd.keys())
+
+    # ---- T+1 友好性过滤（均基于买入前已知信息，无未来函数） ----
+    idx = dates.index(checked_on)
+    if p.get("require_shrink"):
+        lookback = [bd[d]["volume"] for d in dates[max(0, idx - 5):idx]]
+        if lookback:
+            avg_vol = sum(lookback) / len(lookback)
+            if avg_vol > 0 and c_bar.get("volume", 0) >= avg_vol:
+                return {"status": "no_trigger", "reason": "触发日未缩量回踩（放量回踩，隔夜风险高）", "code": code}
+    if p.get("max_atr_pct"):
+        trs = []
+        for j in range(max(0, idx - 13), idx + 1):
+            b = bd[dates[j]]
+            if j - 1 >= 0:
+                prev_close = bd[dates[j - 1]]["close"]
+                if prev_close:
+                    trs.append((b["high"] - b["low"]) / prev_close * 100.0)
+        if trs:
+            atr_pct = sum(trs) / len(trs)
+            if atr_pct > float(p["max_atr_pct"]):
+                return {"status": "no_trigger", "reason": f"波动过大（ATR {atr_pct:.1f}% > 上限 {p['max_atr_pct']}%），隔夜风险高", "code": code}
+
     exec_date = _next_date(dates, checked_on)
     if not exec_date:
         return {"status": "skip", "reason": "缺执行日K线（最新交易日数据未到）", "code": code}
@@ -118,6 +163,9 @@ def simulate(entry: Dict, bars: List[Dict], params: Optional[Dict] = None) -> Di
     exit_price = exit_date = reason = None
     for i, day in enumerate(days):
         bar = bd[day]
+        # A股 T+1：买入当日（i==0）不允许卖出，止损/止盈只能从次一交易日起生效
+        if i == 0 and p["enforce_t1"]:
+            continue
         if bar["low"] <= stop:
             exit_price, exit_date, reason = stop, day, "止损"
             break
