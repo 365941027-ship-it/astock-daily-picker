@@ -530,22 +530,22 @@ function renderResult(r) {
   if (!r) return;
   state.result = r;
   const noMarket = r.market_verdict === "不适合入场";
-  // 大盘不宜入场：只显示空仓观察提示，不展示个股推荐
+  // 方案A：弱市仍展示观察名单（与盘中盯盘口径一致），但强制标注“禁买·等待转强”
   const marketBanner = document.getElementById("marketBanner");
   if (marketBanner) {
     marketBanner.hidden = !noMarket;
     if (noMarket) {
       marketBanner.innerHTML =
         `<div class="card" style="background:#fff5f5;border-color:#ffc9c9">
-          <div class="card-title" style="color:#c92a2a">大盘研判：不适合入场 · 仅做空仓观察</div>
-          <p style="font-size:14px;color:#3d4754">缠论大盘研判判定次日不宜入场，按纪律本轮不推荐任何个股，只做空仓观察，等待指数站稳中枢或出现明确转强信号。</p>
+          <div class="card-title" style="color:#c92a2a">大盘研判：不适合入场 · 以下仅供观察，禁止买入</div>
+          <p style="font-size:14px;color:#3d4754">缠论大盘研判判定次日不宜入场。下列个股<b>只作为观察名单</b>（与盘中盯盘一致），请空仓等待指数站稳中枢或出现明确转强信号后再考虑动手。</p>
         </div>`;
     }
   }
+  // 不再隐藏推荐区（方案A）；仅保留下载按钮的原有逻辑
   document.getElementById("sec-pick").querySelectorAll(".section-block").forEach((el) => {
-    el.hidden = noMarket;
+    el.hidden = false;
   });
-  document.getElementById("downloadActions") && (document.getElementById("downloadActions").hidden = noMarket);
   $("#resultMeta").textContent = r.replay
     ? `历史回放 · ${r.data_date} · 回放池 ${r.pool || 0} 只`
     : `数据日 ${r.data_date} · 观察日 ${r.observe_date} · 通道 ${r.channel || "缓存"}`;
