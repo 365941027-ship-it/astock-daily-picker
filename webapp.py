@@ -146,12 +146,14 @@ class Job:
         self.started: Optional[str] = None
         self.finished: Optional[str] = None
         self.kind: str = "pick"
+        self._loaded_mtime: float = 0.0
         self._restore_from_disk()
 
     def _restore_from_disk(self):
         """服务重启后从磁盘恢复上次选股结果，避免页面无数据。"""
         try:
             if os.path.exists(RESULT_FILE):
+                self._loaded_mtime = os.path.getmtime(RESULT_FILE)
                 with open(RESULT_FILE, "r", encoding="utf-8") as f:
                     saved = json.load(f)
                 if saved and saved.get("state") == "done" and saved.get("result"):
@@ -163,6 +165,36 @@ class Job:
                     self.finished = saved.get("finished") or "已恢复上次结果"
         except Exception:  # noqa: BLE001 - 恢复失败不阻塞启动
             self.state = "idle"
+
+    def _maybe_reload(self):
+        """若磁盘上的选股结果比内存中的更新，则重新载入。
+
+        背景：每日 18:05 的盘后更新是"另起进程"(docker exec)写 last_result.json 的，
+        常驻的 web 进程不会自动感知；若不重载，页面会一直显示上次重启时的旧数据
+        （表现为日期落后一天、涨幅与实时行情对不上）。
+        """
+        try:
+            if self.state == "running":
+                return  # 有任务在跑，不动内存状态
+            if not os.path.exists(RESULT_FILE):
+                return
+            mtime = os.path.getmtime(RESULT_FILE)
+            if mtime <= self._loaded_mtime:
+                return
+            with self.lock:
+                with open(RESULT_FILE, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                if not (saved and saved.get("state") == "done" and saved.get("result")):
+                    return
+                if saved.get("kind", "pick") != "pick":
+                    return
+                self.state = "done"
+                self.result = saved["result"]
+                self.kind = saved.get("kind", "pick")
+                self.finished = saved.get("finished") or self.finished
+                self._loaded_mtime = mtime
+        except Exception:  # noqa: BLE001 - 重载失败不影响已有数据
+            pass
 
     def save_to_disk(self):
         """把当前结果落盘，供服务重启后恢复。
@@ -181,6 +213,7 @@ class Job:
             }
             with open(RESULT_FILE, "w", encoding="utf-8") as f:
                 json.dump(payload, f, ensure_ascii=False)
+            self._loaded_mtime = os.path.getmtime(RESULT_FILE)
         except Exception:  # noqa: BLE001
             pass
 
@@ -215,6 +248,7 @@ class Job:
             self.finished = datetime.now().strftime("%H:%M:%S")
 
     def to_dict(self) -> Dict:
+        self._maybe_reload()
         with self.lock:
             return {
                 "state": self.state,
