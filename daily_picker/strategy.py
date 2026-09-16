@@ -33,6 +33,7 @@ DEFAULT_PARAMS: Dict[str, object] = {
     "max_atr_pct": 0.0,       # 若 >0，则过滤波动过大的票（ATR% 上限），控制隔夜跳空风险
     "conservative_fill": True,  # 保守成交：跳空跌破止损按开盘价成交；跳空高开不享受超额收益
     "cost_pct": 0.0035,         # 单笔往返成本：佣金0.025%×2 + 印花税0.1% + 滑点0.2% ≈ 0.35%
+    "entry_mode": "pullback",   # 入场方式：pullback=等回踩支撑不破(默认)；open=次日开盘直接买(放弃等回踩)
 }
 
 
@@ -114,9 +115,10 @@ def simulate(entry: Dict, bars: List[Dict], params: Optional[Dict] = None) -> Di
     if not c_bar:
         return {"status": "skip", "reason": "缺核对日K线", "code": code}
 
-    # 触发：回踩支撑不破（低点触及支撑且收盘站回）
-    if not (c_bar["low"] <= support and c_bar["close"] >= support):
-        return {"status": "no_trigger", "reason": "未回踩到支撑（低点未触及或收盘破位）", "code": code}
+    if p.get("entry_mode", "pullback") == "pullback":
+        # 触发：回踩支撑不破（低点触及支撑且收盘站回）
+        if not (c_bar["low"] <= support and c_bar["close"] >= support):
+            return {"status": "no_trigger", "reason": "未回踩到支撑（低点未触及或收盘破位）", "code": code}
 
     dates = sorted(bd.keys())
 
@@ -141,7 +143,11 @@ def simulate(entry: Dict, bars: List[Dict], params: Optional[Dict] = None) -> Di
             if atr_pct > float(p["max_atr_pct"]):
                 return {"status": "no_trigger", "reason": f"波动过大（ATR {atr_pct:.1f}% > 上限 {p['max_atr_pct']}%），隔夜风险高", "code": code}
 
-    exec_date = _next_date(dates, checked_on)
+    if p.get("entry_mode", "pullback") == "open":
+        # 放弃等回踩：信号次一交易日开盘直接买入
+        exec_date = checked_on
+    else:
+        exec_date = _next_date(dates, checked_on)
     if not exec_date:
         return {"status": "skip", "reason": "缺执行日K线（最新交易日数据未到）", "code": code}
     e_bar = bd[exec_date]
