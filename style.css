@@ -455,6 +455,29 @@ td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: t
 .market-banner.bad { background: linear-gradient(135deg, #e03131, #c92a2a); }
 .market-banner.mid { background: linear-gradient(135deg, #1c7ed6, #1971c2); }
 .market-banner.good { background: linear-gradient(135deg, #e8590c, #f08c00); }
+
+/* ---------- 入场层级阶梯 ---------- */
+.ladder-box { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+.ladder-head { font-size: 13px; font-weight: 700; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-bottom: 10px; }
+.ladder-cur { font-size: 12px; font-weight: 600; color: #1d4ed8; background: #eef4ff; border-radius: 999px; padding: 3px 10px; }
+.ladder-rows { display: flex; flex-direction: column; gap: 8px; }
+.ladder-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--line); opacity: .72; }
+.ladder-row.on { opacity: 1; background: #fffbe6; border-color: #ffe08a; }
+.ld-badge { flex: 0 0 auto; font-size: 12px; font-weight: 800; color: #fff; background: #adb5bd; border-radius: 8px; padding: 3px 9px; }
+.ladder-row.on .ld-badge { background: #f08c00; }
+.ladder-row.on:nth-child(1) .ld-badge { background: #1971c2; }
+.ld-name { font-size: 13px; font-weight: 700; }
+.ld-cond { font-size: 11px; font-weight: 400; color: var(--sub); margin-left: 6px; }
+.ld-desc { font-size: 12px; color: #3d4754; margin-top: 2px; }
+.ld-hit { font-size: 11px; color: var(--sub); margin-top: 3px; }
+.ladder-idx { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.ld-idx { flex: 1 1 150px; background: #f8fafc; border-radius: 10px; padding: 8px 11px; }
+.ld-idx-name { font-size: 12px; color: var(--sub); }
+.ld-idx-lv { font-size: 18px; font-weight: 800; color: #adb5bd; }
+.ld-idx-lv.mid { color: #1971c2; }
+.ld-idx-lv.up { color: #f08c00; }
+.ld-idx-meta { font-size: 11px; color: var(--sub); }
+.ladder-foot { font-size: 11px; color: var(--sub); margin-top: 10px; background: #f8fafc; border-radius: 8px; padding: 7px 10px; }
 .mon-src { font-size: 10px; padding: 1px 8px; border-radius: 999px; margin-left: 4px; font-weight: 600; }
 .mon-src.src-watch { background: #fff3bf; color: #b08900; }
 .mon-src.src-sys { background: #e7f5ff; color: #1971c2; }

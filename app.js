@@ -839,6 +839,54 @@ function renderVerify(p) {
 }
 
 /* ---------- 缠论研判 ---------- */
+/* 入场层级阶梯：把"今日动向"按三层清晰展示，并标出当前所处层级 */
+function renderEntryLadder(d) {
+  const ladder = d.ladder || [];
+  if (!ladder.length) return "";
+  const cur = d.entry_level || 0;
+  const names = d.entry_level_names || [];
+  const idxMap = {};
+  (d.indices || []).forEach((i) => { idxMap[i.name] = i.daily || null; });
+
+  const rows = ladder.map((lv) => {
+    const active = cur >= lv.level;
+    const hitIdx = (d.indices || []).filter((i) => (i.daily || {}).levels &&
+      (i.daily.levels["l" + lv.level])).map((i) => i.name);
+    return `<div class="ladder-row ${active ? "on" : ""}">
+      <div class="ld-badge">L${lv.level}</div>
+      <div class="ld-main">
+        <div class="ld-name">${esc(lv.name)} <span class="ld-cond">${esc(lv.cond)}</span></div>
+        <div class="ld-desc">${esc(lv.desc)}</div>
+        <div class="ld-hit">${hitIdx.length ? "今日命中：" + hitIdx.map(esc).join("、") : "今日未命中"}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const curText = cur > 0
+    ? `今日最高层级：<b>L${cur} ${esc((ladder.find((x) => x.level === cur) || {}).name || "")}</b>${names.length ? "（" + names.map(esc).join("、") + "）" : ""}`
+    : `今日无层级命中`;
+
+  const idxDaily = (d.indices || []).map((i) => {
+    const s = i.daily || {};
+    const lv = s.level || 0;
+    const vr = s.volume_ratio;
+    return `<div class="ld-idx">
+      <div class="ld-idx-name">${esc(i.name)}</div>
+      <div class="ld-idx-lv ${lv >= 2 ? "up" : lv === 1 ? "mid" : ""}">L${lv}</div>
+      <div class="ld-idx-meta">${fmtPct(s.pct_chg)} · 量比${vr == null ? "—" : fmtNum(vr)}${s.down_streak ? " · 连跌" + s.down_streak + "日" : ""}</div>
+    </div>`;
+  }).join("");
+
+  return `<div class="ladder-box">
+    <div class="ladder-head">今日动向 · 入场层级
+      <span class="ladder-cur">${curText}</span>
+    </div>
+    <div class="ladder-rows">${rows}</div>
+    <div class="ladder-idx">${idxDaily}</div>
+    <div class="ladder-foot">层级越高证据越强，但都不是买入指令：大盘趋势（上方的"缠论大盘研判"）仍是总开关。</div>
+  </div>`;
+}
+
 async function loadSignal() {
   const box = $("#signalResult");
   box.innerHTML = `<div class="empty">加载缠论研判中…</div>`;
@@ -852,6 +900,7 @@ async function loadSignal() {
         <div class="sh-verdict ${tone}">${esc(d.verdict)}</div>
         <div class="sh-advice">${esc(d.advice)}</div>
       </div>
+      ${renderEntryLadder(d)}
       <div class="signal-grid">
         ${(d.indices || []).map((i) => {
           const zs = i.zhongshu;
