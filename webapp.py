@@ -322,8 +322,13 @@ def run_pipeline(params: Dict):
         market_verdict = ""
         if snapshot:
             try:
-                ms = market_signal(cfg)
-                market_verdict = ms.get("verdict", "") if ms.get("ok") else ""
+                # 用"数据日期对应"的历史大盘信号（与回放/核对同一口径），
+                # 避免同一数据日因运行时间不同而判定不同（此前直接用实时 signal，导致的 bug）
+                env = build_env_signal(cfg)
+                market_verdict = env.get(target, "")
+                if not market_verdict:
+                    ms = market_signal(cfg)
+                    market_verdict = ms.get("verdict", "") if ms.get("ok") else ""
                 JOB.log(f"大盘研判：{market_verdict or '不可用'}")
             except Exception:
                 pass

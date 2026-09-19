@@ -184,6 +184,28 @@ def build_local_site(proxy: str = "") -> bool:
         return False
 
 
+def refresh_intraday_snapshot(proxy: str = "") -> bool:
+    """盘后刷新一次盯盘快照，避免页面显示上一个交易日的过期状态。
+
+    动机：盯盘快照只在交易时段由 monitor 写入；盘后更新了新数据后若不刷新，
+    「盘中盯盘」会一直显示旧日期/旧大盘判定，与「大盘研判」不一致。
+    """
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts", "intraday_monitor.py")
+    cmd = [sys.executable, script, "--force"]
+    if proxy:
+        cmd += ["--proxy", proxy]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if r.returncode == 0:
+            print("[盯盘] 快照已刷新")
+            return True
+        print(f"[盯盘] 快照刷新失败：{(r.stdout or '')[-300:]} {(r.stderr or '')[-200:]}")
+        return False
+    except Exception as exc:  # noqa: BLE001
+        print(f"[盯盘] 快照刷新异常：{exc}")
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="A股每日盘后自动更新")
     parser.add_argument("--date", default=None, help="数据日期 YYYY-MM-DD，默认最近交易日")
@@ -212,19 +234,25 @@ def main() -> int:
         ok1 = run_pick(data_date, args.proxy, refresh=args.refresh)
     ok2 = run_replay_update(data_date, args.history_start)
     ok3 = run_verify_update(data_date, args.history_start)
-    if args.build_local_site and (ok1 or ok2 or ok3):
+    updated = bool(ok1 or ok2 or ok3)
+    if args.build_local_site and updated:
         build_strategy_report(args.proxy)
         build_local_site(args.proxy)
-    elif not args.no_publish and (ok1 or ok2 or ok3):
+        refresh_intraday_snapshot(args.proxy)
+    elif updated:
         build_strategy_report(args.proxy)
-        publish_static(args.proxy)
-        try:
-            verdict = ""
-            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_picker", "cache", "last_result.json"), encoding="utf-8") as f:
-                verdict = (json.load(f).get("result") or {}).get("market_verdict", "")
-        except Exception:
-            pass
-        send_push(data_date, verdict)
+        if not args.no_publish:
+            publish_static(args.proxy)
+        # 无论是否发布，都刷新盯盘快照（否则页面会显示过期的大盘判定）
+        refresh_intraday_snapshot(args.proxy)
+        if not args.no_publish:
+            try:
+                verdict = ""
+                with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_picker", "cache", "last_result.json"), encoding="utf-8") as f:
+                    verdict = (json.load(f).get("result") or {}).get("market_verdict", "")
+            except Exception:
+                pass
+            send_push(data_date, verdict)
     if args.send_email:
         send_email(data_date, args.to)
     if not (ok1 or ok2 or ok3):
