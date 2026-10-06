@@ -1179,7 +1179,7 @@ async function loadMonitor() {
       const gen = (d.generated_at || "").replace("T", " ").slice(0, 16);
       const fresh = d.in_session
         ? `<span class="fresh-dot live"></span> 盯盘中 · 每10秒刷新`
-        : `<span class="fresh-dot"></span> 休市 · 最近快照 ${esc(gen)}`;
+        : `<span class="fresh-dot"></span> ${d.holiday ? esc(d.holiday) + "假期休市" : "休市"} · 最近快照 ${esc(gen)}`;
       meta.innerHTML =
         `<div class="freshness-strip ${d.in_session ? "on" : "off"}">
           <b>${fresh}</b>
@@ -1190,7 +1190,8 @@ async function loadMonitor() {
     }
     const v = d.market_verdict || "";
     if (banner) {
-      if (v === "不适合入场") banner.innerHTML = `<div class="market-banner bad">今日大盘不适合入场 · 只做空仓观察，触发也按纪律等待转强</div>`;
+      if (d.holiday) banner.innerHTML = `<div class="market-banner mid">📅 今日${esc(d.holiday)}休市 · 不产生新数据，以下为 ${esc(d.data_date || "—")}（上一交易日）的盯盘结果</div>`;
+      else if (v === "不适合入场") banner.innerHTML = `<div class="market-banner bad">今日大盘不适合入场 · 只做空仓观察，触发也按纪律等待转强</div>`;
       else if (v === "观望为主") banner.innerHTML = `<div class="market-banner mid">今日大盘观望为主 · 轻仓试错，单票≤5%</div>`;
       else if (v) banner.innerHTML = `<div class="market-banner good">今日大盘适合入场 · 优选回踩不破品种</div>`;
       else banner.innerHTML = "";

@@ -123,12 +123,14 @@ async function load(){
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||"no data");
     const session=d.in_session;
-    $("#liveBadge").textContent=session?"盯盘中":"非交易时段";
+    const holiday=d.holiday||"";
+    $("#liveBadge").textContent=session?"盯盘中":(holiday?holiday+"休市":"非交易时段");
     $("#liveBadge").className="live"+(session?"":" off");
     $("#meta").innerHTML=`数据日 ${esc(d.data_date||"")} · 更新 ${(d.generated_at||"").replace("T"," ").slice(5,16)} · 共 ${(d.items||[]).length} 只`;
     const v=d.market_verdict||"";
     const bn=$("#banner");
-    if(v==="不适合入场"){bn.className="banner bad";bn.innerHTML="今日大盘：不适合入场 —— 只做空仓观察，不新增仓位。<small>盯盘仅用于熟悉规则，触发也请按纪律等待大盘转强。</small>";bn.hidden=false;}
+    if(holiday){bn.className="banner mid";bn.innerHTML=`📅 今日${esc(holiday)}休市 —— 不产生新数据。<small>以下为 ${esc(d.data_date||"")}（上一交易日）的盯盘结果，仅供参考；下一交易日为开市日，届时按新数据执行。</small>`;bn.hidden=false;}
+    else if(v==="不适合入场"){bn.className="banner bad";bn.innerHTML="今日大盘：不适合入场 —— 只做空仓观察，不新增仓位。<small>盯盘仅用于熟悉规则，触发也请按纪律等待大盘转强。</small>";bn.hidden=false;}
     else if(v==="观望为主"){bn.className="banner mid";bn.innerHTML="今日大盘：观望为主 —— 轻仓试错，单票 ≤5%。<small>等回踩支撑不破再考虑，不追高。</small>";bn.hidden=false;}
     else if(v){bn.className="banner good";bn.innerHTML="今日大盘：适合入场 —— 优选回踩不破品种。<small>仍按策略卡触发价与止损执行。</small>";bn.hidden=false;}
     else{bn.hidden=true;}
