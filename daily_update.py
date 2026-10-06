@@ -27,6 +27,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import webapp  # noqa: E402
 from daily_picker.cli import _parse_date, resolve_data_date  # noqa: E402
+from daily_picker.config import cn_now  # noqa: E402
+from daily_picker.trading_calendar import holiday_name, is_trading_day  # noqa: E402
 
 
 def wait_job(timeout: int = 900) -> bool:
@@ -222,6 +224,13 @@ def main() -> int:
 
     data_date = (args.date or resolve_data_date(None).isoformat())
     print(f"== 每日盘后更新 {data_date} ==")
+    if not args.date:
+        today = cn_now().date()
+        hol = holiday_name(today)
+        if hol:
+            print(f"[休市] 今日休市（{hol}），不产生新交易日数据；目标数据日回退到 {data_date}。")
+        elif not is_trading_day(today):
+            print(f"[休市] 今日非交易日，目标数据日回退到 {data_date}。")
     if already_up_to_date(data_date) and not args.force:
         print(f"数据已更新到 {data_date}（回放索引最后一天），本次跳过。")
         return 0

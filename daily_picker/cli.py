@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import argparse
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Optional
 
 from . import __version__
 from .config import Config, cn_now
 from .data_fetch import DataCache, channel_name, get_indices, get_klines, get_snapshot
+from .trading_calendar import (
+    calendar_covers,
+    last_trading_day_on_or_before,
+    next_trading_day as _next_trading_day,
+)
 from .report import HAS_DOCX, build_content, render_docx, render_markdown
 from .screening import prefilter, screen
 
@@ -19,19 +24,19 @@ def _parse_date(s: str) -> date:
 
 
 def resolve_data_date(args_date: Optional[str]) -> date:
+    """解析数据日期：显式指定则原样返回；否则取「最近一个已收盘的交易日」。
+
+    注意这里是交易日历（含法定节假日），不是只按周末回退。例如国庆假期中的
+    10-06 会解析到 09-30，而不是把自己当成交易日。
+    """
     if args_date:
         return _parse_date(args_date)
-    d = cn_now().date()
-    while d.weekday() >= 5:  # 周末回退到周五
-        d -= timedelta(days=1)
-    return d
+    return last_trading_day_on_or_before(cn_now())
 
 
 def next_trading_day(d: date) -> date:
-    d += timedelta(days=1)
-    while d.weekday() >= 5:
-        d += timedelta(days=1)
-    return d
+    """下一个交易日（跳过周末与法定节假日）。"""
+    return _next_trading_day(d)
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -79,6 +84,9 @@ def main(argv=None) -> int:
     data_date = resolve_data_date(args.date)
     print(f"== A股每日选股 v{__version__} ==")
     print(f"数据日期：{data_date.isoformat()}　运行时间：{cn_now().strftime('%Y-%m-%d %H:%M:%S')}")
+    if not calendar_covers(data_date):
+        print(f"提示：{data_date.year} 年的交易所休市安排尚未收录，节假日可能被误判为交易日，"
+              f"请更新 daily_picker/trading_calendar.py")
 
     cache = DataCache(os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache"))
 

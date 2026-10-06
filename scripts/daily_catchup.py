@@ -22,9 +22,33 @@ import sys
 from datetime import date, datetime, timedelta, time as dtime, timezone
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BASE)
 
-PY = "/Users/yexiyan/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+from daily_picker.trading_calendar import (  # noqa: E402
+    is_trading_day,
+    last_trading_day_on_or_before,
+    prev_trading_day,
+)
+
 LOCK = "/tmp/astock_daily_catchup.lock"
+
+
+def _resolve_python() -> str:
+    """解释器探测：优先当前解释器，其次 PATH 里的 python3/python。
+
+    历史 bug：这里曾写死 Mac 上的 Codex 运行时路径，导致云服务器上
+    每天 9:30 的补跑任务必然抛 FileNotFoundError。
+    """
+    cands = [sys.executable, "/usr/local/bin/python3", "/usr/bin/python3"]
+    for c in cands:
+        if c and os.path.exists(c):
+            return c
+    import shutil
+
+    return shutil.which("python3") or shutil.which("python") or "python3"
+
+
+PY = _resolve_python()
 
 
 CN_TZ = timezone(timedelta(hours=8))
@@ -35,28 +59,32 @@ def _now() -> datetime:
 
 
 def _prev_weekday(d: date) -> date:
-    d -= timedelta(days=1)
-    while d.weekday() >= 5:
-        d -= timedelta(days=1)
-    return d
+    """上一个交易日（含法定节假日回退）。保留旧名字避免外部引用报错。"""
+    return prev_trading_day(d)
 
 
 def _next_weekday(d: date) -> date:
     d += timedelta(days=1)
-    while d.weekday() >= 5:
+    while not is_trading_day(d):
         d += timedelta(days=1)
     return d
 
 
 def latest_completed_trading_day() -> str:
-    today = _now().date()
-    # 周末回退到周五
-    latest = today
-    while latest.weekday() >= 5:
-        latest -= timedelta(days=1)
-    # 今天若是交易日但还没到 18:00 盘后，则只补到上一交易日
-    if latest == today and latest.weekday() < 5 and _now().time() < dtime(18, 0):
-        latest = _prev_weekday(latest)
+    """最近一个「已收盘（过 18:00）」的交易日。
+
+    - 今天为交易日且已过 18:00 → 今天；
+    - 今天为交易日但未到 18:00 → 上一交易日（当天由 18:05 正常任务处理）；
+    - 今天休市（周末或法定节假日） → 最近一个交易日。
+    """
+    now = _now()
+    today = now.date()
+    if is_trading_day(today) and now.time() >= dtime(18, 0):
+        latest = today
+    else:
+        latest = last_trading_day_on_or_before(today)
+        if latest == today:  # 今天交易日但未到 18:00
+            latest = prev_trading_day(today)
     return latest.isoformat()
 
 

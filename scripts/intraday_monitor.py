@@ -31,6 +31,7 @@ from daily_picker.indicators import analyze_bars, kdj_series, macd_series  # noq
 from daily_picker.risks import load_risk_cache  # noqa: E402
 from daily_picker.screening import Candidate, evaluate  # noqa: E402
 from daily_picker.strategy import build_cards, build_watch_cards, load_kline_bars  # noqa: E402
+from daily_picker.trading_calendar import holiday_name, calendar_covers  # noqa: E402
 from daily_picker.userdata import load as load_userdata  # noqa: E402
 
 CN_TZ = timezone(timedelta(hours=8))
@@ -118,9 +119,17 @@ def latest_replay_and_verdict():
     return payload, day, verdict
 
 
+def _holiday_today(n: datetime | None = None) -> str:
+    """今天若是交易所法定休市日（元旦/春节/清明/劳动节/端午/中秋/国庆），返回假期名，否则空串。"""
+    return holiday_name((n or _now()).date()) or ""
+
+
 def _in_session(force: bool) -> bool:
+    """是否处于可交易的盘中时段。周末与法定节假日一律 False（即便 --force 也不改判定）。"""
     n = _now()
-    if n.weekday() >= 5 and not force:
+    if n.weekday() >= 5:
+        return False
+    if _holiday_today(n):
         return False
     if force:
         return True
@@ -135,9 +144,15 @@ def _wait_until_open(args) -> bool:
     if args.force:
         return True
     n = _now()
+    hol = _holiday_today(n)
+    if hol:
+        print(f"[盯盘] 今日休市（{hol}），退出循环；页面显示的是上一交易日数据。")
+        return False
     if n.weekday() >= 5:
         print("[盯盘] 周末休市，退出循环。")
         return False
+    if not calendar_covers(n.date()):
+        print(f"[盯盘] 提示：{n.year} 年休市安排尚未收录，节假日可能被误判，请更新 trading_calendar.py")
     if n.time() > dtime(15, 10):
         print("[盯盘] 已过 15:10 收盘，退出循环。")
         return False
@@ -359,6 +374,7 @@ def snapshot(proxy: str = "") -> dict:
         "data_date": day,
         "market_verdict": verdict,
         "in_session": in_session,
+        "holiday": _holiday_today(),
         "items": items,
         "rejected": rejected,
     }
@@ -437,10 +453,17 @@ def main() -> int:
         return 0
 
     in_session = _in_session(args.force)
+    hol = _holiday_today()
     if not in_session and not args.watch:
-        print("[盯盘] 当前非交易时段，仍执行一次快照供参考。")
+        if hol:
+            print(f"[盯盘] 今日休市（{hol}），仍执行一次快照供参考（显示上一交易日数据）。")
+        else:
+            print("[盯盘] 当前非交易时段，仍执行一次快照供参考。")
     if not in_session and args.watch:
-        print("[盯盘] 当前非交易时段，退出循环（可用 --force 测试）。")
+        if hol:
+            print(f"[盯盘] 今日休市（{hol}），退出循环。")
+        else:
+            print("[盯盘] 当前非交易时段，退出循环（可用 --force 测试）。")
 
     first = True
     while True:
