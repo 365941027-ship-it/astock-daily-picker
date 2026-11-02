@@ -31,7 +31,7 @@ from daily_picker.indicators import analyze_bars, kdj_series, macd_series  # noq
 from daily_picker.risks import load_risk_cache  # noqa: E402
 from daily_picker.screening import Candidate, evaluate  # noqa: E402
 from daily_picker.strategy import build_cards, build_watch_cards, load_kline_bars  # noqa: E402
-from daily_picker.trading_calendar import holiday_name, calendar_covers  # noqa: E402
+from daily_picker.trading_calendar import holiday_name, calendar_covers, next_trading_day  # noqa: E402
 from daily_picker.userdata import load as load_userdata  # noqa: E402
 
 CN_TZ = timezone(timedelta(hours=8))
@@ -372,6 +372,7 @@ def snapshot(proxy: str = "") -> dict:
         "ok": True,
         "generated_at": _now().isoformat(timespec="seconds"),
         "data_date": day,
+        "observe_date": next_trading_day(day).isoformat() if day else "",
         "market_verdict": verdict,
         "in_session": in_session,
         "holiday": _holiday_today(),

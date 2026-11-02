@@ -1,6 +1,6 @@
 """缠论大盘研判 + 观察行业筛选 + 入场建议。
 
-大盘：用三大指数日K计算缠论中枢，结合均线与位置给出当日是否适合入场。
+大盘：用三大指数收盘日K计算缠论中枢，结合均线与位置判断下一交易日是否适合入场。
 行业：基于板块热度分档筛选 3-5 个观察行业。
 """
 
@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 from .chanlun import annotate as chanlun_annotate
 from .config import Config
 from .data_fetch import fetch_kline, fetch_sectors
+from .trading_calendar import next_trading_day
 
 
 INDEX_INFO = {
@@ -190,7 +191,7 @@ def index_signal_series(
 
 
 def market_signal(cfg: Config) -> Dict:
-    """综合三大指数给出当日入场建议。"""
+    """用最近交易日收盘结构，给出下一交易日的入场环境。"""
     results = []
     for name in INDEX_INFO:
         r = analyze_index(name, cfg)
@@ -234,6 +235,7 @@ def market_signal(cfg: Config) -> Dict:
     return {
         "ok": True,
         "date": results[0]["date"],
+        "observe_date": next_trading_day(results[0]["date"]).isoformat(),
         "verdict": verdict,
         "advice": advice,
         "indices": results,
