@@ -293,6 +293,7 @@ async function renderProductHero(cfg) {
     const v = latest ? latest.market_verdict : "";
     const meta = verdictMeta(v || "");
     const dd = latest ? latest.data_date : (cfg && cfg.default_date) || "";
+    const od = latest ? latest.observe_date : "";
     const upd = (metrics && metrics.updated_at) || (cfg && cfg.updated_at) || "";
     const dateStr = upd ? upd.replace("T", " ").slice(0, 16) : "";
 
@@ -300,8 +301,8 @@ async function renderProductHero(cfg) {
     const now = new Date();
     const wd = now.getDay();
     const sessionNote = wd === 0 || wd === 6
-      ? `当前为周末/休市，最新数据日为 ${dd || "—"}，下一交易日自动更新`
-      : `最新数据日 ${dd || "—"} · 盘后 18:05 自动更新`;
+      ? `当前为周末/休市 · ${dd || "—"} 收盘数据对应 ${od || "下一交易日"} 操作环境`
+      : `${dd || "—"} 收盘数据 → ${od || "下一交易日"} 操作环境 · 盘后 18:05 自动更新`;
 
     $("#freshnessBar").innerHTML =
       `<span>📅 ${sessionNote}</span>` +
