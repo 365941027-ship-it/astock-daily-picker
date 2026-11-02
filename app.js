@@ -277,9 +277,9 @@ function staticGate(cfg) {
 function fmtSign(v, d = 2) { return v === null || v === undefined ? "—" : (v > 0 ? "+" : "") + Number(v).toFixed(d); }
 
 function verdictMeta(v) {
-  if (v === "不适合入场") return { tone: "bad", title: "今日大盘判定：不适合入场", text: "按纪律只做空仓观察，不新推个股；等待指数站稳中枢或出现明确转强信号。" };
-  if (v === "观望为主") return { tone: "mid", title: "今日大盘判定：观望为主", text: "只轻仓试错、优先观察最强者，单票仓位控制在 5% 以内，宁可错过不追高。" };
-  return { tone: "good", title: "今日大盘判定：适合入场", text: "环境偏强，可按推荐方案优选回踩不破的品种，注意不追高。" };
+  if (v === "不适合入场") return { tone: "bad", title: "下一交易日操作环境：不适合入场", text: "依据最近收盘结构，下一交易日按纪律只做空仓观察；等待指数站稳中枢或出现明确转强信号。" };
+  if (v === "观望为主") return { tone: "mid", title: "下一交易日操作环境：观望为主", text: "依据最近收盘结构，下一交易日只轻仓试错、优先观察最强者，单票仓位控制在 5% 以内。" };
+  return { tone: "good", title: "下一交易日操作环境：适合入场", text: "最近收盘结构偏强，下一交易日可按推荐方案优选回踩不破的品种，注意不追高。" };
 }
 
 async function renderProductHero(cfg) {
@@ -293,6 +293,7 @@ async function renderProductHero(cfg) {
     const v = latest ? latest.market_verdict : "";
     const meta = verdictMeta(v || "");
     const dd = latest ? latest.data_date : (cfg && cfg.default_date) || "";
+    const od = latest ? latest.observe_date : "";
     const upd = (metrics && metrics.updated_at) || (cfg && cfg.updated_at) || "";
     const dateStr = upd ? upd.replace("T", " ").slice(0, 16) : "";
 
@@ -300,8 +301,8 @@ async function renderProductHero(cfg) {
     const now = new Date();
     const wd = now.getDay();
     const sessionNote = wd === 0 || wd === 6
-      ? `当前为周末/休市，最新数据日为 ${dd || "—"}，下一交易日自动更新`
-      : `最新数据日 ${dd || "—"} · 盘后 18:05 自动更新`;
+      ? `当前为周末/休市 · ${dd || "—"} 收盘数据对应 ${od || "下一交易日"} 操作环境`
+      : `${dd || "—"} 收盘数据 → ${od || "下一交易日"} 操作环境 · 盘后 18:05 自动更新`;
 
     $("#freshnessBar").innerHTML =
       `<span>📅 ${sessionNote}</span>` +
@@ -537,8 +538,8 @@ function renderResult(r) {
     if (noMarket) {
       marketBanner.innerHTML =
         `<div class="card" style="background:#fff5f5;border-color:#ffc9c9">
-          <div class="card-title" style="color:#c92a2a">大盘研判：不适合入场 · 以下仅供观察，禁止买入</div>
-          <p style="font-size:14px;color:#3d4754">缠论大盘研判判定次日不宜入场。下列个股<b>只作为观察名单</b>（与盘中盯盘一致），请空仓等待指数站稳中枢或出现明确转强信号后再考虑动手。</p>
+          <div class="card-title" style="color:#c92a2a">${r.data_date} 收盘研判 → ${r.observe_date} 操作环境：不适合入场</div>
+          <p style="font-size:14px;color:#3d4754">依据 ${r.data_date} 收盘结构，下一交易日环境偏弱。下列个股<b>只作为观察名单</b>（与盘中盯盘一致），请空仓等待指数站稳中枢或出现明确转强信号后再考虑动手。</p>
         </div>`;
     }
   }
@@ -548,7 +549,7 @@ function renderResult(r) {
   });
   $("#resultMeta").textContent = r.replay
     ? `历史回放 · ${r.data_date} · 回放池 ${r.pool || 0} 只`
-    : `数据日 ${r.data_date} · 观察日 ${r.observe_date} · 通道 ${r.channel || "缓存"}`;
+    : `${r.data_date} 收盘数据 · 适用交易日 ${r.observe_date} · 通道 ${r.channel || "缓存"}`;
 
   if (r.market && r.market.total) {
     const m = r.market;
@@ -896,7 +897,7 @@ async function loadSignal() {
     const tone = d.verdict === "适合入场" ? "up" : d.verdict === "不适合入场" ? "down" : "";
     box.innerHTML = `
       <div class="signal-hero">
-        <div class="sh-title">${d.date} · 缠论大盘研判</div>
+        <div class="sh-title">${d.date} 收盘研判 → ${d.observe_date || "下一交易日"} 操作环境</div>
         <div class="sh-verdict ${tone}">${esc(d.verdict)}</div>
         <div class="sh-advice">${esc(d.advice)}</div>
       </div>
@@ -1183,7 +1184,7 @@ async function loadMonitor() {
       meta.innerHTML =
         `<div class="freshness-strip ${d.in_session ? "on" : "off"}">
           <b>${fresh}</b>
-          <span>数据日 ${esc(d.data_date || "—")}</span>
+          <span>${esc(d.data_date || "—")} 收盘 → ${esc(d.observe_date || "下一交易日")} 操作环境</span>
           <span>候选 ${(d.items || []).length} 只</span>
           ${d.market_verdict ? `<span>大盘：${esc(d.market_verdict)}</span>` : ""}
         </div>`;
@@ -1191,9 +1192,9 @@ async function loadMonitor() {
     const v = d.market_verdict || "";
     if (banner) {
       if (d.holiday) banner.innerHTML = `<div class="market-banner mid">📅 今日${esc(d.holiday)}休市 · 不产生新数据，以下为 ${esc(d.data_date || "—")}（上一交易日）的盯盘结果</div>`;
-      else if (v === "不适合入场") banner.innerHTML = `<div class="market-banner bad">今日大盘不适合入场 · 只做空仓观察，触发也按纪律等待转强</div>`;
-      else if (v === "观望为主") banner.innerHTML = `<div class="market-banner mid">今日大盘观望为主 · 轻仓试错，单票≤5%</div>`;
-      else if (v) banner.innerHTML = `<div class="market-banner good">今日大盘适合入场 · 优选回踩不破品种</div>`;
+      else if (v === "不适合入场") banner.innerHTML = `<div class="market-banner bad">${esc(d.data_date || "最近收盘")} → ${esc(d.observe_date || "下一交易日")}：不适合入场 · 只做空仓观察</div>`;
+      else if (v === "观望为主") banner.innerHTML = `<div class="market-banner mid">${esc(d.data_date || "最近收盘")} → ${esc(d.observe_date || "下一交易日")}：观望为主 · 轻仓试错，单票≤5%</div>`;
+      else if (v) banner.innerHTML = `<div class="market-banner good">${esc(d.data_date || "最近收盘")} → ${esc(d.observe_date || "下一交易日")}：适合入场 · 优选回踩不破品种</div>`;
       else banner.innerHTML = "";
     }
     if (rejectedBox) {
